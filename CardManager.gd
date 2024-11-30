@@ -3,14 +3,14 @@ extends Node2D
 const COLLISION_MASK_CARD = 1
 const COLLISION_MASK_CARD_SLOT = 2
 const DEFAULT_CARD_MOVE_SPEED = .33
-const CARD_SMALLER_SCALE = .9
+const CARD_SMALLER_SCALE = .97
 
 var card_being_dragged
 var screen_size
 var is_hovering_on_card
 var player_hand_reference
 var opponent_hand_reference
-var discard_pile_reference
+#var discard_pile_reference
 var discard_pile = []
 
 # Called when the node enters the scene tree for the first time.
