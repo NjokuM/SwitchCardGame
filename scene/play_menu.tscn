@@ -1,0 +1,139 @@
+[gd_scene load_steps=9 format=3 uid="uid://bs38gxu4emt2m"]
+
+[ext_resource type="Script" path="res://Scripts/play_menu.gd" id="1_7hp0m"]
+[ext_resource type="Texture2D" uid="uid://dew66su4ank75" path="res://assets/10059426.jpg" id="2_4dap7"]
+[ext_resource type="FontFile" uid="uid://bdv3nir2r7fgo" path="res://assets/fonts/iImong.ttf" id="3_7303j"]
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_ruf3j"]
+texture = ExtResource("2_4dap7")
+modulate_color = Color(0.36, 0.36, 0.36, 1)
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_roel2"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_norys"]
+bg_color = Color(0.862522, 0.862522, 0.862522, 1)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+shadow_size = 15
+shadow_offset = Vector2(0, 3.41)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_8gebh"]
+bg_color = Color(0.599199, 0.599199, 0.599199, 1)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+shadow_size = 15
+shadow_offset = Vector2(0, 3.41)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_nbefu"]
+bg_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+shadow_size = 15
+shadow_offset = Vector2(0, 3.41)
+
+[node name="PlayMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_7hp0m")
+
+[node name="Panel2" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxTexture_ruf3j")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -289.0
+offset_top = 24.0
+offset_right = 288.0
+offset_bottom = 409.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 9
+
+[node name="Button" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_hover_color = Color(0, 0, 0, 1)
+theme_override_colors/font_pressed_color = Color(0, 0, 0, 1)
+theme_override_colors/font_focus_color = Color(0, 0, 0, 1)
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 60
+theme_override_styles/focus = SubResource("StyleBoxEmpty_roel2")
+theme_override_styles/hover = SubResource("StyleBoxFlat_norys")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_8gebh")
+theme_override_styles/normal = SubResource("StyleBoxFlat_nbefu")
+text = "Online Multiplayer"
+
+[node name="Button2" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_hover_color = Color(0, 0, 0, 1)
+theme_override_colors/font_pressed_color = Color(0, 0, 0, 1)
+theme_override_colors/font_focus_color = Color(0, 0, 0, 1)
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 60
+theme_override_styles/focus = SubResource("StyleBoxEmpty_roel2")
+theme_override_styles/hover = SubResource("StyleBoxFlat_norys")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_8gebh")
+theme_override_styles/normal = SubResource("StyleBoxFlat_nbefu")
+text = "Local Multiplayer"
+
+[node name="Button3" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_hover_color = Color(0, 0, 0, 1)
+theme_override_colors/font_pressed_color = Color(0, 0, 0, 1)
+theme_override_colors/font_focus_color = Color(0, 0, 0, 1)
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 60
+theme_override_styles/focus = SubResource("StyleBoxEmpty_roel2")
+theme_override_styles/hover = SubResource("StyleBoxFlat_norys")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_8gebh")
+theme_override_styles/normal = SubResource("StyleBoxFlat_nbefu")
+text = "Play vs CPU"
+
+[node name="Label" type="Label" parent="VBoxContainer/Button3"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.5
+anchor_top = -5.12
+anchor_right = 0.5
+anchor_bottom = -5.12
+offset_left = -1829.5
+offset_top = -83.2399
+offset_right = 1811.5
+offset_bottom = 127.76
+grow_horizontal = 2
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
+theme_override_constants/shadow_offset_x = 10
+theme_override_constants/shadow_offset_y = 10
+theme_override_constants/outline_size = 2
+theme_override_fonts/font = ExtResource("3_7303j")
+theme_override_font_sizes/font_size = 100
+text = "Select the Game Mode You would like to play"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[connection signal="pressed" from="VBoxContainer/Button" to="." method="_on_multiplayer_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/Button2" to="." method="_on_local_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/Button3" to="." method="_on_play_cpu_button_pressed"]

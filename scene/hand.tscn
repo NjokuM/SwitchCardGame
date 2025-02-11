@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3 uid="uid://dr3ghh7yfv7o1"]
+
+[ext_resource type="Script" path="res://Scripts/hand.gd" id="1_is63m"]
+
+[node name="Hand" type="Node2D"]
+script = ExtResource("1_is63m")
+
+[node name="Hand" type="Node2D" parent="."]
+position = Vector2(812, 942)
+
+[node name="HBoxContainer" type="HBoxContainer" parent="."]
+offset_right = 40.0
+offset_bottom = 40.0

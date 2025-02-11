@@ -29,7 +29,6 @@ func _process(delta: float) -> void:
 func start_drag(card):
 	card_being_dragged = card
 	card.scale = Vector2(1,1)
-	card.z_index = discard_pile.size() + 1
 	#print(card.z_index)
 	
 func finish_drag():

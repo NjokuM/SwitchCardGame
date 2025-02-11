@@ -3,12 +3,12 @@ extends Node2D
 signal hovered
 signal hovered_off
 
-var starting_position
-var value
-var suit
-var is_card_in_card_slot
+var starting_position: Vector2 = Vector2.ZERO  # ✅ Define the variable
+var value: String
+var suit: String
+var is_card_in_card_slot: bool = false
 
-func set_card_data(card_value:String, card_suit:String):
+func set_card_data(card_value: String, card_suit: String):
 	value = card_value
 	suit = card_suit
 	
@@ -23,20 +23,13 @@ func set_card_data(card_value:String, card_suit:String):
 		$CardFaceImage.texture = texture
 	else:
 		print("Error: Missing texture for %s of %s" % [value, suit])
+		
 
-# Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	get_parent().connect_card_signals(self)
 
-
-# Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta: float) -> void:
-	pass
-
-
 func _on_area_2d_mouse_entered() -> void:
-	emit_signal("hovered",self)
-
+	emit_signal("hovered", self)
 
 func _on_area_2d_mouse_exited() -> void:
-	emit_signal("hovered_off",self)
+	emit_signal("hovered_off", self)
