@@ -6,8 +6,3 @@
 script = ExtResource("1_is63m")
 
 [node name="Hand" type="Node2D" parent="."]
-position = Vector2(812, 942)
-
-[node name="HBoxContainer" type="HBoxContainer" parent="."]
-offset_right = 40.0
-offset_bottom = 40.0

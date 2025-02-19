@@ -115,12 +115,10 @@ _data = {
 }
 
 [node name="Card" type="Node2D"]
-position = Vector2(750, 800)
 script = ExtResource("1_jfv5k")
 
 [node name="CardBackImage" type="Sprite2D" parent="."]
 visible = false
-position = Vector2(556, -441)
 scale = Vector2(0.5, 0.5)
 texture = ExtResource("2_repf7")
 
@@ -137,5 +135,6 @@ libraries = {
 "": SubResource("AnimationLibrary_x4ml5")
 }
 
+[connection signal="pressed" from="." to="." method="_on_card_clicked"]
 [connection signal="mouse_entered" from="Area2D" to="." method="_on_area_2d_mouse_entered"]
 [connection signal="mouse_exited" from="Area2D" to="." method="_on_area_2d_mouse_exited"]

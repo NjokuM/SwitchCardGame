@@ -5,26 +5,25 @@ signal left_mouse_button_released
 
 const COLLISION_MASK_CARD = 1
 const COLLISION_MASK_DECK = 4
+const COLLISION_MASK_SLOT = 8  # Add new collision mask for slot
 
-var card_manager_reference
-var deck_reference
+@onready var card_manager_reference = $"../CardManager"
+@onready var game_manager_reference = $"../GameManager"
+@onready var deck_reference = $"../Deck"
+@onready var card_slot = $"../CardSlot"
 
-# Called when the node enters the scene tree for the first time.
-func _ready() -> void:
-	card_manager_reference = $"../CardManager"
-	deck_reference = $"../Deck"
+func _ready():
+	card_slot.slot_clicked.connect(_on_slot_clicked)
+
 func _input(event):
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
 			emit_signal("left_mouse_button_clicked")
-			emit_signal("left_mouse_button_released")
-			
 			raycast_at_cursor()
 		else:
-			pass
-			
-			
-func  raycast_at_cursor():
+			emit_signal("left_mouse_button_released")
+
+func raycast_at_cursor():
 	var space_state = get_world_2d().direct_space_state
 	var parameters = PhysicsPointQueryParameters2D.new()
 	parameters.position = get_global_mouse_position()
@@ -34,10 +33,11 @@ func  raycast_at_cursor():
 	if result.size() > 0:
 		var result_collision_mask = result[0].collider.collision_mask
 		if result_collision_mask == COLLISION_MASK_CARD:
-			# card clicked
-			var card_found =  result[0].collider.get_parent()
+			var card_found = result[0].collider.get_parent()
 			if card_found:
-				card_manager_reference.start_drag(card_found)
+				game_manager_reference.select_card(card_found)
 		elif result_collision_mask == COLLISION_MASK_DECK:
-			# deck clicked
-			deck_reference.draw_card()
+			deck_reference.draw_card(0)  # Draw for current player
+
+func _on_slot_clicked():
+	game_manager_reference.play_selected_cards()
