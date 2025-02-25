@@ -16,53 +16,39 @@ func _ready():
 	area.input_event.connect(_on_area_input_event)
 
 func can_place_card(card: Node2D) -> bool:
-	print("DEBUG: Checking if can place card")
-	print("DEBUG: Card type:", typeof(card))
-	
-	# More thorough property checks
-	if card == null:
-		print("DEBUG: Card is null")
+	# Safety checks
+	if not card or not ("value" in card) or not ("suit" in card):
+		print("DEBUG: Card missing required properties")
 		return false
-		
-	# Do NOT access properties yet - check if they exist first
-	if not card.get("value"):
-		print("DEBUG: Card missing 'value' property")
-		if card.has_method("get_value"):
-			print("DEBUG: Card has get_value() method")
-			# Could try using a method instead
-		return false
-		
-	if not card.get("suit"):
-		print("DEBUG: Card missing 'suit' property")
-		return false
-	
-	# Now it's safe to access the properties
-	var card_value = card.value
-	var card_suit = card.suit
 	
 	# Aces can be played anytime
-	if card_value == "Ace":
+	if card.value == "Ace":
 		return true
 		
 	if last_played_card == null:
 		print("No card in slot yet, can play any card")
 		return true  # First card can be anything
 	
-	# Check last_played_card properties safely
-	if not last_played_card.get("value") or not last_played_card.get("suit"):
+	# Safety checks for last_played_card
+	if not last_played_card or not ("value" in last_played_card) or not ("suit" in last_played_card):
 		print("DEBUG: Last played card missing properties")
 		return false
 	
-	# Debug prints
+	# Check if the last card was an Ace with a chosen suit
+	if last_played_card.value == "Ace" and last_played_card.get("chosen_suit") and last_played_card.chosen_suit != "":
+		var suit_matches = card.suit == last_played_card.chosen_suit
+		print("Ace with chosen suit:", last_played_card.chosen_suit)
+		print("Card suit matches chosen suit:", suit_matches)
+		return suit_matches
+	
+	# Normal card matching
+	var suit_matches = card.suit == last_played_card.suit
+	var value_matches = card.value == last_played_card.value
+	
 	print("Last played card: ", last_played_card.value, " of ", last_played_card.suit)
-	print("Attempting to play: ", card_value, " of ", card_suit)
-	
-	# Check if the new card matches either the suit or value of the last played card
-	var suit_matches = card_suit == last_played_card.suit
-	var value_matches = card_value == last_played_card.value
-	
-	print("Suit matches: ", suit_matches)
-	print("Value matches: ", value_matches)
+	print("Attempting to play: ", card.value, " of ", card.suit)
+	print("Suit matches:", suit_matches)
+	print("Value matches:", value_matches)
 	
 	return suit_matches or value_matches
 

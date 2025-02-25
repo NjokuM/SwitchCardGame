@@ -12,6 +12,10 @@ var game_direction = 1  # 1 for clockwise, -1 for counter-clockwise
 var cards_to_draw = 0   # For accumulating draw cards (e.g., multiple 2s)
 var skip_turn_switch = false  # For Jack effect
 var next_player_to_draw = 0  # Track who needs to draw cards
+var waiting_for_defense = false  # Flag for when waiting for 2 or 5 defense
+var waiting_for_suit_selection = false  # Flag for when waiting for Ace suit selection
+var chosen_suit = ""  # For storing the chosen suit after an Ace is played
+var current_attacker = -1  # Track who played the attacking card
 
 func _ready():
 	if not InputMap.has_action("draw_card"):
@@ -189,6 +193,11 @@ func select_card(card):
 	if not ("value" in card) or not ("suit" in card):
 		print("❌ Card missing required properties in select_card")
 		return
+	
+	# Make sure the card is actually in the current player's hand
+	if not hands[current_turn].hand.has(card):
+		print("❌ Attempted to select a card not in current player's hand")
+		return
 		
 	if card in selected_cards:
 		# Deselect card
@@ -286,38 +295,172 @@ func handle_power_card_effects(card):
 			next_player_to_draw = (current_turn + game_direction) % num_players
 			if next_player_to_draw < 0:
 				next_player_to_draw = num_players - 1
-			cards_to_draw += 2
-			print("Player ", next_player_to_draw + 1, " will draw ", cards_to_draw, " cards")
+				
+			# Check if next player has a 2 to defend
+			if has_card_in_hand(next_player_to_draw, "2"):
+				waiting_for_defense = true
+				current_attacker = current_turn
+				cards_to_draw = 2
+				show_play_notification("Player " + str(next_player_to_draw + 1) + " can play a 2 to defend!")
+				# Don't switch turns yet - wait for defense or skip
+			else:
+				cards_to_draw = 2
+				print("Player ", next_player_to_draw + 1, " will draw ", cards_to_draw, " cards")
+			
 		"7":
 			# Skip next player's turn
 			current_turn = (current_turn + game_direction) % num_players
 			if current_turn < 0:
 				current_turn = num_players - 1
 			show_play_notification("Skipping Player " + str(current_turn + 1) + "'s turn!")
+			
 		"8":
-			game_direction *= -1  # Reverse direction
-			show_play_notification("Game direction reversed!")
+			if num_players == 2:
+				# In 2-player mode, 8 works like 7 (skip/play again)
+				show_play_notification("Player " + str(current_turn + 1) + " plays again!")
+				skip_turn_switch = true  # Don't switch turns
+			else:
+				# In 3+ player mode, reverse direction
+				game_direction *= -1
+				show_play_notification("Game direction reversed!")
+				
+		"Ace":
+			# Prompt for suit selection
+			waiting_for_suit_selection = true
+			skip_turn_switch = true  # Don't switch turns until suit is selected
+			show_suit_selection_ui()
+			
 		"King":
 			if card.suit == "Hearts":
 				next_player_to_draw = (current_turn + game_direction) % num_players
 				if next_player_to_draw < 0:
 					next_player_to_draw = num_players - 1
-				cards_to_draw = 5
-				print("Player ", next_player_to_draw + 1, " will draw ", cards_to_draw, " cards")
+					
+				# Check if next player has a 5 of Hearts or 2 of Hearts to defend
+				if has_card_in_hand(next_player_to_draw, "5", "Hearts") or has_card_in_hand(next_player_to_draw, "2", "Hearts"):
+					waiting_for_defense = true
+					current_attacker = current_turn
+					cards_to_draw = 5
+					show_play_notification("Player " + str(next_player_to_draw + 1) + " can defend against King of Hearts!")
+					# Don't switch turns yet - wait for defense or skip
+				else:
+					cards_to_draw = 5
+					print("Player ", next_player_to_draw + 1, " will draw ", cards_to_draw, " cards")
+				
 		"5":
 			if card.suit == "Hearts" and cards_to_draw == 5:
 				cards_to_draw = 0  # Cancel King of Hearts effect
 				show_play_notification("King of Hearts effect cancelled!")
+				
 		"2":
 			if card.suit == "Hearts" and cards_to_draw == 5:
 				cards_to_draw = 7  # Convert 5 to 7 cards
 				show_play_notification("Pick up increased to 7 cards!")
+				
 		"Jack":
 			skip_turn_switch = true  # Don't end turn after playing a Jack
 			show_play_notification("Player " + str(current_turn + 1) + " can play another card!")
 
+# Add this function to check if a player has a specific card
+func has_card_in_hand(player_index, value, suit = null):
+	for card in hands[player_index].hand:
+		if card.value == value:
+			if suit == null or card.suit == suit:
+				return true
+	return false
+
+# Function to handle defending against a 2 or King of Hearts
+func defend_against_attack(card = null):
+	if not waiting_for_defense:
+		return
+		
+	if card:
+		# Player is defending with a card
+		if card.value == "2":
+			# Add 2 more cards to draw
+			cards_to_draw += 2
+			show_play_notification("Player " + str(current_turn + 1) + " defended! Next player draws " + str(cards_to_draw))
+			
+			# Remove the card from hand
+			hands[current_turn].remove_card(card)
+			card_slot.place_card(card)
+			
+		elif card.value == "5" and card.suit == "Hearts" and cards_to_draw == 5:
+			# Cancel King of Hearts effect
+			cards_to_draw = 0
+			show_play_notification("King of Hearts effect cancelled!")
+			
+			# Remove the card from hand
+			hands[current_turn].remove_card(card)
+			card_slot.place_card(card)
+			
+		elif card.value == "2" and card.suit == "Hearts" and cards_to_draw == 5:
+			# Convert 5 to 7 cards
+			cards_to_draw = 7
+			show_play_notification("Pick up increased to 7 cards!")
+			
+			# Remove the card from hand
+			hands[current_turn].remove_card(card)
+			card_slot.place_card(card)
+	else:
+		# Player is not defending (skipped)
+		show_play_notification("Player " + str(current_turn + 1) + " draws " + str(cards_to_draw) + " cards")
+	
+	# Reset defense state
+	waiting_for_defense = false
+	current_attacker = -1
+	
+	# Continue the game
+	switch_turn()
+
+# Function to show suit selection UI for Ace
+func show_suit_selection_ui():
+	show_play_notification("Select a suit: Hearts, Diamonds, Clubs, or Spades")
+	
+	# Create buttons for suit selection
+	var suits = ["Hearts", "Diamonds", "Clubs", "Spades"]
+	var button_container = HBoxContainer.new()
+	button_container.name = "SuitButtons"
+	button_container.alignment = BoxContainer.ALIGNMENT_CENTER
+	
+	for suit in suits:
+		var button = Button.new()
+		button.text = suit
+		button.custom_minimum_size = Vector2(100, 50)
+		button.pressed.connect(func(): select_suit(suit))
+		button_container.add_child(button)
+	
+	# Position the buttons at center screen
+	var screen_size = get_viewport_rect().size
+	button_container.position = Vector2(screen_size.x / 2 - 200, screen_size.y / 2 + 50)
+	
+	add_child(button_container)
+
+# Function to handle suit selection
+func select_suit(suit):
+	chosen_suit = suit
+	show_play_notification("Suit changed to " + suit)
+	
+	# Update the Ace card to show chosen suit
+	var ace_card = card_slot.get_last_played_card()
+	if ace_card:
+		ace_card.set_chosen_suit(suit)
+	
+	# Remove the suit selection UI
+	if has_node("SuitButtons"):
+		get_node("SuitButtons").queue_free()
+	
+	# Reset state and continue game
+	waiting_for_suit_selection = false
+	skip_turn_switch = false
+	switch_turn()
+
 func switch_turn():
 	# Apply any accumulated card draws to the next player
+	
+	if waiting_for_defense or waiting_for_suit_selection:
+		return
+		
 	if cards_to_draw > 0:
 		# Draw cards for the next player
 		for i in range(cards_to_draw):

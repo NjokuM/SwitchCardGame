@@ -10,6 +10,8 @@ var suit: String
 var is_card_in_card_slot: bool = false
 var is_selected: bool = false
 var face_texture: Texture2D  # Store the face texture for reference
+var chosen_suit: String = ""  # For Aces
+
 
 # Constants for visual feedback
 const HOVER_OFFSET = -20
@@ -98,6 +100,11 @@ func play_to_slot():
 	is_selected = false
 	# Reset position if needed
 	position = Vector2.ZERO
+	
+func set_chosen_suit(suit: String):
+	chosen_suit = suit
+
+	print("Card suit changed to:", suit)
 
 # Call this when removing card from play
 func reset_state():
