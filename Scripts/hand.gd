@@ -29,18 +29,10 @@ func update_positions(speed):
 	var start_x = -total_width / 2  # Center the hand
 	
 	for i in range(hand.size()):
-		var new_position
-		if player_position == 0 or player_position == 1:  # Horizontal hands (bottom/top)
-			new_position = Vector2(
-				start_x + (i * (CARD_WIDTH + CARD_SPACING)),
-				0  # Keep Y at 0 relative to hand position
-			)
-		else:  # Vertical hands (left/right)
-			new_position = Vector2(
-				0,  # Keep X at 0 relative to hand position
-				start_x + (i * (CARD_WIDTH + CARD_SPACING))
-			)
-		
+		var new_position = Vector2(
+			start_x + (i * (CARD_WIDTH + CARD_SPACING)),
+			0  # Keep Y at 0 relative to hand position
+		)
 		move_card(hand[i], new_position, speed)
 
 func move_card(card: Node2D, new_position: Vector2, speed: float):

@@ -7,8 +7,7 @@ const COLLISION_MASK_CARD = 1
 const COLLISION_MASK_DECK = 4
 const COLLISION_MASK_SLOT = 8  # Add new collision mask for slot
 
-@onready var card_manager_reference = $"../CardManager"
-@onready var game_manager_reference = $"../GameManager"
+@onready var card_manager_reference = $"../GameManager"
 @onready var deck_reference = $"../Deck"
 @onready var card_slot = $"../CardSlot"
 
@@ -35,9 +34,10 @@ func raycast_at_cursor():
 		if result_collision_mask == COLLISION_MASK_CARD:
 			var card_found = result[0].collider.get_parent()
 			if card_found:
-				game_manager_reference.select_card(card_found)
+				card_manager_reference._on_card_clicked(card_found)
 		elif result_collision_mask == COLLISION_MASK_DECK:
-			deck_reference.draw_card(0)  # Draw for current player
+			# Call the GameManager directly to handle drawing for current player
+			card_manager_reference.draw_card_for_current_player()
 
 func _on_slot_clicked():
-	game_manager_reference.play_selected_cards()
+	card_manager_reference.play_selected_cards()

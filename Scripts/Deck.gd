@@ -47,30 +47,31 @@ func deal_card_to_player(player_index: int):
 	game_manager.hands[player_index].add_card(new_card, CARD_DRAW_SPEED)
 	return new_card
 func draw_card(player_index: int):
-	# Check if it's actually this player's turn
-	if player_index != game_manager.current_turn:
-		print("❌ Not Player", player_index + 1, "'s turn to draw!")
-		return null
+	print("DEBUG: Draw request for Player " + str(player_index + 1))
+	print("DEBUG: Current turn is Player " + str(game_manager.current_turn + 1))
+	
+	# Critical fix: Don't check turn here, trust the player_index passed in
 	if deck.is_empty():
 		reshuffle_discard_pile()
 		if deck.is_empty():
 			print("❌ No cards left to draw!")
 			return null
-
+			
 	var card_data = deck.pop_front()
 	var new_card = CARD_SCENE.instantiate()
-
+	
 	if new_card.has_method("set_card_data"):
 		new_card.set_card_data(card_data["value"], card_data["suit"])
 		print("✅ Drawing card:", card_data["value"], "of", card_data["suit"], "for Player", player_index + 1)
 	else:
 		push_error("❌ Error: Card scene is missing 'set_card_data' method!")
 		return null
-
+		
 	game_manager.hands[player_index].add_card(new_card, CARD_DRAW_SPEED)
-	# End the player's turn after drawing
-	game_manager.switch_turn()
+	
+	# Important: Don't switch turns here, let GameManager handle it
 	return new_card
+	
 func draw_card_for_slot():
 	if deck.is_empty():
 		reshuffle_discard_pile()

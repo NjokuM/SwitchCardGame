@@ -14,6 +14,15 @@ var skip_turn_switch = false  # For Jack effect
 var next_player_to_draw = 0  # Track who needs to draw cards
 
 func _ready():
+	if not InputMap.has_action("draw_card"):
+		InputMap.add_action("draw_card")
+		
+		# Associate it with the 'D' key
+		var event = InputEventKey.new()
+		event.keycode = KEY_D
+		InputMap.action_add_event("draw_card", event)
+	
+	
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 	await get_tree().process_frame  
 	num_players = GameSettings.num_players  
@@ -27,15 +36,29 @@ func setup_play_label():
 		var label = Label.new()
 		label.name = "PlayLabel"
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		# Position in the upper middle of the screen
-		label.position = Vector2(get_viewport_rect().size.x / 2 - 150, 50)
-		label.custom_minimum_size = Vector2(300, 50)  # Give it some minimum size
 		
-		# Style the label
+		# Position in the center of the screen instead of the top
+		var screen_size = get_viewport_rect().size
+		label.position = Vector2(screen_size.x / 2 + 200, screen_size.y / 2 - 50)
+		label.custom_minimum_size = Vector2(400, 100)  # Make it larger
+		
+		# Style the label to be more visible
 		var style = LabelSettings.new()
-		style.font_size = 24
+		style.font_size = 32  # Larger font
 		style.font_color = Color(1, 1, 1)  # White text
+		style.outline_size = 2  # Add outline
+		style.outline_color = Color(0, 0, 0)  # Black outline
+		style.shadow_size = 5  # Add shadow
+		style.shadow_color = Color(0, 0, 0, 0.5)  # Semi-transparent black shadow
 		label.label_settings = style
+		
+		# Add a background panel
+		var panel = ColorRect.new()
+		panel.color = Color(0.1, 0.1, 0.1, 0.7)  # Semi-transparent dark background
+		panel.size = Vector2(400, 100)
+		panel.position = Vector2(0, 0)
+		label.add_child(panel)
+		panel.z_index = -1  # Make sure it's behind the text
 		
 		add_child(label)
 		play_label = label
@@ -145,22 +168,28 @@ func create_player_hands():
 		print("✅ Hand added for Player", i + 1, "at", positions[i])
 
 func draw_card_for_current_player():
-	# Only allow drawing if it's the player's actual turn
-	if not is_current_player_turn():
-		show_play_notification("Not your turn to draw!")
-		return null
-		
+	print("DEBUG: Attempting to draw for Player " + str(current_turn + 1))
+	
+	# Pass the current_turn to draw_card
 	var drawn_card = deck.draw_card(current_turn)
+	
 	if drawn_card:
 		show_play_notification("Player " + str(current_turn + 1) + " drew a card")
-		switch_turn()  # End turn after drawing
+		# Switch turn AFTER drawing is complete
+		switch_turn()
+	
 	return drawn_card
 
 func select_card(card):
 	if not is_current_player_turn() or not card:
 		print("Not current player's turn or invalid card")
 		return
-
+		
+	# Check if card has required properties
+	if not ("value" in card) or not ("suit" in card):
+		print("❌ Card missing required properties in select_card")
+		return
+		
 	if card in selected_cards:
 		# Deselect card
 		selected_cards.erase(card)
@@ -174,8 +203,13 @@ func select_card(card):
 			print("Card selected:", card.value, "of", card.suit)
 		else:
 			print("Cannot select this card! Doesn't match current card in slot.")
-			if card_slot.get_last_played_card():
-				print("Card in slot:", card_slot.get_last_played_card().value)
+			
+			# Safely access last played card properties
+			var last_card = card_slot.get_last_played_card()
+			if last_card and "value" in last_card:
+				print("Card in slot:", last_card.value)
+			
+			# Now we can safely print the card properties
 			print("Trying to play:", card.value, "of", card.suit)
 
 func can_select_card(card) -> bool:
@@ -185,7 +219,17 @@ func can_select_card(card) -> bool:
 		print("Checking if can place card:", can_place)
 		return can_place
 	
-	# Additional cards must match the value of first selected card
+	# Only do value matching when we have multiple cards
+	# Make sure all cards have the required properties
+	if not card or not ("value" in card):
+		print("❌ Card being checked is missing required properties")
+		return false
+	
+	if not selected_cards[0] or not ("value" in selected_cards[0]):
+		print("❌ First selected card is missing required properties")
+		return false
+	
+	# Now it's safe to compare the values
 	var value_matches = card.value == selected_cards[0].value
 	print("Checking if value matches first selected card:", value_matches)
 	return value_matches
