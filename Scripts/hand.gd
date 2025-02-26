@@ -12,6 +12,14 @@ var center_screen_x
 
 func _ready() -> void:
 	center_screen_x = get_viewport().size.x / 2
+	
+	center_screen_x = get_viewport().size.x / 2
+	
+	# Connect to window resize signals
+	get_tree().root.size_changed.connect(func(): 
+		center_screen_x = get_viewport().size.x / 2
+		update_positions(0.2)
+	)
 
 func add_card(card: Node2D, speed: float):
 	if card not in hand:

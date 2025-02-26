@@ -16,16 +16,18 @@ var waiting_for_defense = false  # Flag for when waiting for 2 or 5 defense
 var waiting_for_suit_selection = false  # Flag for when waiting for Ace suit selection
 var chosen_suit = ""  # For storing the chosen suit after an Ace is played
 var current_attacker = -1  # Track who played the attacking card
+var defense_button_container = null
+var last_card_button = null
+var last_card_declared = false  # Track if player has declared last card
+var jack_count = 0  # Track how many Jacks were played
 
 func _ready():
+	# Add draw_card action if it doesn't exist
 	if not InputMap.has_action("draw_card"):
 		InputMap.add_action("draw_card")
-		
-		# Associate it with the 'D' key
 		var event = InputEventKey.new()
-		event.keycode = KEY_D
+		event.keycode = KEY_D  # Or any key you prefer
 		InputMap.action_add_event("draw_card", event)
-	
 	
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 	await get_tree().process_frame  
@@ -33,6 +35,54 @@ func _ready():
 	print("Game started with", num_players, "players!")
 	setup_play_label()
 	start_game()
+	
+	
+# Add this function to handle screen resizing
+func reposition_all_game_elements():
+	# Update card slot position
+	card_slot.center_position()
+	
+	# Update deck position
+	deck.position_deck()
+	
+	# Update all hands positions
+	reposition_player_hands()
+	
+	# Update any UI elements
+	if last_card_button != null:
+		var screen_size = get_viewport_rect().size
+		last_card_button.position = Vector2(screen_size.x / 2 - 100, screen_size.y - 100)
+
+func reposition_player_hands():
+	var screen_size = get_viewport_rect().size
+	var margin = 100
+	
+	var positions = []
+	match num_players:
+		2:
+			positions = [
+				Vector2(screen_size.x / 2, screen_size.y - margin),  # Bottom
+				Vector2(screen_size.x / 2, margin)  # Top
+			]
+		3:
+			positions = [
+				Vector2(screen_size.x / 2, screen_size.y - margin),  # Bottom
+				Vector2(margin, screen_size.y / 2),  # Left
+				Vector2(screen_size.x - margin, screen_size.y / 2)  # Right
+			]
+		4:
+			positions = [
+				Vector2(screen_size.x / 2, screen_size.y - margin),  # Bottom
+				Vector2(screen_size.x / 2, margin),  # Top
+				Vector2(margin, screen_size.y / 2),  # Left
+				Vector2(screen_size.x - margin, screen_size.y / 2)  # Right
+			]
+	
+	# Update hand positions
+	for i in range(hands.size()):
+		if i < positions.size():
+			hands[i].position = positions[i]
+			hands[i].update_positions(0.2)  # Small animation duration
 
 func setup_play_label():
 	# Create label if it doesn't exist
@@ -168,7 +218,7 @@ func create_player_hands():
 		
 		add_child(hand)
 		hands.append(hand)
-		hand.update_visibility(false)  # Always show all hands for testing
+		hand.update_visibility(true)  # Always show all hands for testing
 		print("✅ Hand added for Player", i + 1, "at", positions[i])
 
 func draw_card_for_current_player():
@@ -193,7 +243,7 @@ func select_card(card):
 	if not ("value" in card) or not ("suit" in card):
 		print("❌ Card missing required properties in select_card")
 		return
-	
+		
 	# Make sure the card is actually in the current player's hand
 	if not hands[current_turn].hand.has(card):
 		print("❌ Attempted to select a card not in current player's hand")
@@ -221,15 +271,18 @@ func select_card(card):
 			# Now we can safely print the card properties
 			print("Trying to play:", card.value, "of", card.suit)
 
+# In GameManager.gd, update the can_select_card function:
 func can_select_card(card) -> bool:
 	# First card must match the card in slot
 	if selected_cards.is_empty():
+		# If we just played an 8 in 2-player mode or a Jack,
+		# we need to check against the current top card
 		var can_place = card_slot.can_place_card(card)
 		print("Checking if can place card:", can_place)
 		return can_place
 	
-	# Only do value matching when we have multiple cards
-	# Make sure all cards have the required properties
+	# For normal multiple card selection, we just need the same value
+	# Even if we're in a special turn after 8 or Jack
 	if not card or not ("value" in card):
 		print("❌ Card being checked is missing required properties")
 		return false
@@ -238,18 +291,15 @@ func can_select_card(card) -> bool:
 		print("❌ First selected card is missing required properties")
 		return false
 	
-	# Now it's safe to compare the values
+	# Check if value matches first selected card,
+	# regardless of whether it's after a special card
 	var value_matches = card.value == selected_cards[0].value
 	print("Checking if value matches first selected card:", value_matches)
 	return value_matches
 
 func is_current_player_turn() -> bool:
-	# For testing card playing, we still allow playing any hand
-	# But for drawing, we need to respect the actual turn order
-	if Input.is_action_just_pressed("draw_card"):  # If this is a draw action
-		return true # Allow drawing only on current turn
-	return true # Still allow playing from any hand for testing
-
+	return true  # For testing, allow all actions
+	
 func play_selected_cards():
 	if selected_cards.is_empty():
 		return
@@ -258,17 +308,45 @@ func play_selected_cards():
 		print("Cannot play these cards!")
 		return
 	
+	# Check if this is their second-last card and show Last Card button
+	if hands[current_turn].hand.size() == selected_cards.size() + 1:
+		show_last_card_button()
+	
 	# Play all selected cards in order
 	var played_cards_descriptions = []
 	skip_turn_switch = false  # Reset the Jack effect
 	
-	for card in selected_cards:
+	# Count power cards
+	var sevens_count = 0
+	var jack_count = 0
+	var eights_count = 0
+	
+	# Check for Ace selection - only the LAST one matters
+	var has_ace = false
+	var last_ace_index = -1
+	
+	# Count Jacks and other special cards
+	for i in range(selected_cards.size()):
+		if selected_cards[i].value == "Ace":
+			has_ace = true
+			last_ace_index = i
+		elif selected_cards[i].value == "Jack":
+			jack_count += 1
+		elif selected_cards[i].value == "7":
+			sevens_count += 1
+		elif selected_cards[i].value == "8" and num_players == 2:
+			eights_count += 1
+	
+	# Handle non-Ace cards and Aces before the last one
+	for i in range(selected_cards.size()):
+		var card = selected_cards[i]
 		hands[current_turn].remove_card(card)
 		card_slot.place_card(card)
 		played_cards_descriptions.append(str(card.value) + " of " + str(card.suit))
 		
-		# Handle power card effects
-		handle_power_card_effects(card)
+		# Only trigger special effects for the last card or non-Aces
+		if (card.value != "Ace") or (i == last_ace_index):
+			handle_power_card_effects(card, sevens_count)
 	
 	# Join the card descriptions with commas
 	var played_cards_text = ", ".join(played_cards_descriptions)
@@ -278,17 +356,55 @@ func play_selected_cards():
 	var message = "Player " + str(player_number) + " played: " + played_cards_text
 	show_play_notification(message)
 	
+	# Special handling for multiple Jacks or 8s in 2-player mode
+	if jack_count > 0 or (eights_count > 0 and num_players == 2):
+		skip_turn_switch = true
+		
+		var extra_message = ""
+		if jack_count > 0 and eights_count > 0:
+			extra_message = "Player " + str(current_turn + 1) + " can play " + str(jack_count + eights_count) + " more card(s)!"
+		elif jack_count > 0:
+			extra_message = "Player " + str(current_turn + 1) + " can play " + str(jack_count) + " more card(s)!"
+		else:
+			extra_message = "Player " + str(current_turn + 1) + " plays again!"
+			
+		show_play_notification(extra_message)
+	
 	# Check for win condition
 	if hands[current_turn].hand.is_empty():
-		show_play_notification("Player " + str(current_turn + 1) + " wins!")
-		# You might want to add game over handling here
+		# Check if the last card played was a power card
+		var last_card = selected_cards[selected_cards.size() - 1]
+		if is_power_card(last_card):
+			show_play_notification("Cannot win with a power card! Drawing a card.")
+			var drawn_card = deck.draw_card(current_turn)
+		# Otherwise check for Last Card declaration
+		elif last_card_declared:
+			show_play_notification("Player " + str(current_turn + 1) + " wins!")
+			# Reset for next game
+			last_card_declared = false
+			hide_last_card_button()
+		else:
+			# Player didn't declare Last Card - penalty
+			show_play_notification("Player " + str(current_turn + 1) + " didn't declare Last Card! +2 cards penalty!")
+			
+			# Add 2 penalty cards
+			for i in range(2):
+				var drawn_card = deck.draw_card(current_turn)
+				if drawn_card:
+					print("Player " + str(current_turn + 1) + " drew a penalty card")
+		
+	# Reset last card declared if they still have cards
+	if hands[current_turn].hand.size() > 1:
+		last_card_declared = false
 	
-	# Clear selection and only switch turns if we didn't play a Jack
+	# Clear selection
 	selected_cards.clear()
-	if not skip_turn_switch:
+	
+	# Switch turns unless special condition
+	if not skip_turn_switch and not waiting_for_defense and not waiting_for_suit_selection:
 		switch_turn()
-
-func handle_power_card_effects(card):
+		
+func handle_power_card_effects(card, sevens_count = 0):
 	match card.value:
 		"2":
 			# Calculate next player considering game direction
@@ -302,17 +418,36 @@ func handle_power_card_effects(card):
 				current_attacker = current_turn
 				cards_to_draw = 2
 				show_play_notification("Player " + str(next_player_to_draw + 1) + " can play a 2 to defend!")
+				show_defense_ui("2")
 				# Don't switch turns yet - wait for defense or skip
 			else:
 				cards_to_draw = 2
 				print("Player ", next_player_to_draw + 1, " will draw ", cards_to_draw, " cards")
 			
 		"7":
-			# Skip next player's turn
-			current_turn = (current_turn + game_direction) % num_players
-			if current_turn < 0:
-				current_turn = num_players - 1
-			show_play_notification("Skipping Player " + str(current_turn + 1) + "'s turn!")
+			# Handle multiple 7s correctly across all player counts
+			if sevens_count > 0:
+				# Calculate how many players to skip based on 7s count
+				var players_to_skip = sevens_count
+				
+				# Store original turn before skipping
+				var original_turn = current_turn
+				
+				# Apply skips one by one to ensure proper wrapping
+				for i in range(players_to_skip):
+					current_turn = (current_turn + game_direction) % num_players
+					if current_turn < 0:
+						current_turn = num_players - 1
+				
+				show_play_notification("Player " + str(original_turn + 1) + " played " + 
+									  str(sevens_count) + " 7s. Skipping " + str(players_to_skip) + 
+									  " players to Player " + str(current_turn + 1) + "!")
+			else:
+				# Single 7 - skip one player
+				current_turn = (current_turn + game_direction) % num_players
+				if current_turn < 0:
+					current_turn = num_players - 1
+				show_play_notification("Skipping Player " + str(current_turn + 1) + "'s turn!")
 			
 		"8":
 			if num_players == 2:
@@ -342,6 +477,7 @@ func handle_power_card_effects(card):
 					current_attacker = current_turn
 					cards_to_draw = 5
 					show_play_notification("Player " + str(next_player_to_draw + 1) + " can defend against King of Hearts!")
+					show_defense_ui("KingOfHearts")
 					# Don't switch turns yet - wait for defense or skip
 				else:
 					cards_to_draw = 5
@@ -356,10 +492,6 @@ func handle_power_card_effects(card):
 			if card.suit == "Hearts" and cards_to_draw == 5:
 				cards_to_draw = 7  # Convert 5 to 7 cards
 				show_play_notification("Pick up increased to 7 cards!")
-				
-		"Jack":
-			skip_turn_switch = true  # Don't end turn after playing a Jack
-			show_play_notification("Player " + str(current_turn + 1) + " can play another card!")
 
 # Add this function to check if a player has a specific card
 func has_card_in_hand(player_index, value, suit = null):
@@ -368,6 +500,131 @@ func has_card_in_hand(player_index, value, suit = null):
 			if suit == null or card.suit == suit:
 				return true
 	return false
+
+# Show UI for defending against attacks
+func show_defense_ui(attack_type):
+	# Switch to the defending player's turn
+	current_turn = next_player_to_draw
+	
+	# Create buttons for defense options
+	var screen_size = get_viewport_rect().size
+	defense_button_container = VBoxContainer.new()
+	defense_button_container.name = "DefenseButtons"
+	defense_button_container.position = Vector2(screen_size.x / 2 + 200, screen_size.y / 2 + 50)
+	
+	if attack_type == "KingOfHearts":
+		# Check for both defense options
+		var has_5_of_hearts = false
+		var has_2_of_hearts = false
+		
+		for card in hands[current_turn].hand:
+			if card.value == "5" and card.suit == "Hearts":
+				has_5_of_hearts = true
+			elif card.value == "2" and card.suit == "Hearts":
+				has_2_of_hearts = true
+		
+		# Add specific defense buttons
+		if has_5_of_hearts:
+			var five_button = Button.new()
+			five_button.text = "Use 5 of Hearts (Cancel)"
+			five_button.custom_minimum_size = Vector2(200, 50)
+			five_button.pressed.connect(func(): _on_specific_defend_pressed("5ofHearts"))
+			defense_button_container.add_child(five_button)
+		
+		if has_2_of_hearts:
+			var two_button = Button.new()
+			two_button.text = "Use 2 of Hearts (Add +2)"
+			two_button.custom_minimum_size = Vector2(200, 50)
+			two_button.pressed.connect(func(): _on_specific_defend_pressed("2ofHearts"))
+			defense_button_container.add_child(two_button)
+	else:
+		var defend_button = Button.new()
+		defend_button.text = "Defend"
+		defend_button.custom_minimum_size = Vector2(200, 50)
+		defend_button.pressed.connect(func(): _on_defend_pressed(attack_type))
+		defense_button_container.add_child(defend_button)
+	
+	var skip_button = Button.new()
+	skip_button.text = "Draw Cards"
+	skip_button.custom_minimum_size = Vector2(200, 50)
+	skip_button.pressed.connect(func(): _on_skip_defense_pressed())
+	defense_button_container.add_child(skip_button)
+	
+	add_child(defense_button_container)
+
+# Function to handle specific defense option for King of Hearts
+func _on_specific_defend_pressed(defense_type):
+	# Clean up UI
+	if defense_button_container:
+		defense_button_container.queue_free()
+		defense_button_container = null
+	
+	var defense_card = null
+	
+	if defense_type == "5ofHearts":
+		# Find 5 of Hearts
+		for card in hands[current_turn].hand:
+			if card.value == "5" and card.suit == "Hearts":
+				defense_card = card
+				break
+	elif defense_type == "2ofHearts":
+		# Find 2 of Hearts
+		for card in hands[current_turn].hand:
+			if card.value == "2" and card.suit == "Hearts":
+				defense_card = card
+				break
+	
+	if defense_card:
+		defend_against_attack(defense_card)
+	else:
+		_on_skip_defense_pressed()
+
+# Function to handle defend button press
+func _on_defend_pressed(attack_type):
+	# Clean up UI
+	if defense_button_container:
+		defense_button_container.queue_free()
+		defense_button_container = null
+	
+	# We need to find the appropriate defense card
+	var defense_card = null
+	
+	if attack_type == "2":
+		# Find a 2 in the player's hand
+		for card in hands[current_turn].hand:
+			if card.value == "2":
+				defense_card = card
+				break
+	elif attack_type == "KingOfHearts":
+		# First check for 5 of Hearts
+		for card in hands[current_turn].hand:
+			if card.value == "5" and card.suit == "Hearts":
+				defense_card = card
+				break
+		
+		# If no 5 of Hearts, check for 2 of Hearts
+		if not defense_card:
+			for card in hands[current_turn].hand:
+				if card.value == "2" and card.suit == "Hearts":
+					defense_card = card
+					break
+	
+	if defense_card:
+		# Play the defense card
+		defend_against_attack(defense_card)
+	else:
+		# No defense card found (shouldn't happen)
+		_on_skip_defense_pressed()
+
+# Function to handle skip defense button press
+func _on_skip_defense_pressed():
+	# Clean up UI
+	if defense_button_container:
+		defense_button_container.queue_free()
+		defense_button_container = null
+	
+	# Accept the attack
+	defend_against_attack(null)
 
 # Function to handle defending against a 2 or King of Hearts
 func defend_against_attack(card = null):
@@ -379,11 +636,34 @@ func defend_against_attack(card = null):
 		if card.value == "2":
 			# Add 2 more cards to draw
 			cards_to_draw += 2
-			show_play_notification("Player " + str(current_turn + 1) + " defended! Next player draws " + str(cards_to_draw))
 			
+			# Calculate next player to check if they can defend
+			next_player_to_draw = (current_turn + game_direction) % num_players
+			if next_player_to_draw < 0:
+				next_player_to_draw = num_players - 1
+				
 			# Remove the card from hand
 			hands[current_turn].remove_card(card)
 			card_slot.place_card(card)
+			
+			# Check if next player has a 2 to defend
+			if has_card_in_hand(next_player_to_draw, "2"):
+				show_play_notification("Player " + str(next_player_to_draw + 1) + " can defend! Total cards: " + str(cards_to_draw))
+				current_turn = next_player_to_draw
+				waiting_for_defense = true
+				show_defense_ui("2")
+			else:
+				# No more defenses possible
+				show_play_notification("Player " + str(next_player_to_draw + 1) + " must draw " + str(cards_to_draw) + " cards!")
+				waiting_for_defense = false
+				current_turn = next_player_to_draw
+				
+				# Apply card drawing
+				for i in range(cards_to_draw):
+					var drawn_card = deck.draw_card(current_turn)
+				
+				cards_to_draw = 0
+				switch_turn()
 			
 		elif card.value == "5" and card.suit == "Hearts" and cards_to_draw == 5:
 			# Cancel King of Hearts effect
@@ -394,6 +674,10 @@ func defend_against_attack(card = null):
 			hands[current_turn].remove_card(card)
 			card_slot.place_card(card)
 			
+			# Move to next player
+			waiting_for_defense = false
+			switch_turn()
+			
 		elif card.value == "2" and card.suit == "Hearts" and cards_to_draw == 5:
 			# Convert 5 to 7 cards
 			cards_to_draw = 7
@@ -402,16 +686,35 @@ func defend_against_attack(card = null):
 			# Remove the card from hand
 			hands[current_turn].remove_card(card)
 			card_slot.place_card(card)
+			
+			# Player who defended still must draw cards
+			waiting_for_defense = false
+			
+			# Apply card drawing to current player
+			for i in range(cards_to_draw):
+				var drawn_card = deck.draw_card(current_turn)
+				if drawn_card:
+					print("Player " + str(current_turn + 1) + " drew a card")
+			
+			# Reset state and move to next player
+			cards_to_draw = 0
+			switch_turn()
 	else:
 		# Player is not defending (skipped)
 		show_play_notification("Player " + str(current_turn + 1) + " draws " + str(cards_to_draw) + " cards")
 	
-	# Reset defense state
-	waiting_for_defense = false
-	current_attacker = -1
-	
-	# Continue the game
-	switch_turn()
+		# Apply the card drawing
+		for i in range(cards_to_draw):
+			var drawn_card = deck.draw_card(current_turn)
+			if drawn_card:
+				print("Player " + str(current_turn + 1) + " drew a card")
+		
+		# Reset state
+		cards_to_draw = 0
+		waiting_for_defense = false
+		
+		# Skip directly to the next player
+		switch_turn()
 
 # Function to show suit selection UI for Ace
 func show_suit_selection_ui():
@@ -432,7 +735,7 @@ func show_suit_selection_ui():
 	
 	# Position the buttons at center screen
 	var screen_size = get_viewport_rect().size
-	button_container.position = Vector2(screen_size.x / 2 - 200, screen_size.y / 2 + 50)
+	button_container.position = Vector2(screen_size.x / 2 + 200, screen_size.y / 2 + 50)
 	
 	add_child(button_container)
 
@@ -443,7 +746,7 @@ func select_suit(suit):
 	
 	# Update the Ace card to show chosen suit
 	var ace_card = card_slot.get_last_played_card()
-	if ace_card:
+	if ace_card and ace_card.has_method("set_chosen_suit"):
 		ace_card.set_chosen_suit(suit)
 	
 	# Remove the suit selection UI
@@ -455,20 +758,69 @@ func select_suit(suit):
 	skip_turn_switch = false
 	switch_turn()
 
-func switch_turn():
-	# Apply any accumulated card draws to the next player
+# Add this function to show the Last Card button
+func show_last_card_button():
+	# Create button if it doesn't exist
+	if last_card_button == null:
+		last_card_button = Button.new()
+		last_card_button.text = "Last Card!"
+		last_card_button.custom_minimum_size = Vector2(200, 50)
+		
+		# Style the button to make it stand out
+		var style = StyleBoxFlat.new()
+		style.bg_color = Color(0.9, 0.1, 0.1, 0.8)  # Bright red
+		style.border_width_left = 2
+		style.border_width_right = 2
+		style.border_width_top = 2
+		style.border_width_bottom = 2
+		style.border_color = Color(1, 1, 1)
+		style.corner_radius_top_left = 10
+		style.corner_radius_top_right = 10
+		style.corner_radius_bottom_left = 10
+		style.corner_radius_bottom_right = 10
+		last_card_button.add_theme_stylebox_override("normal", style)
+		
+		# Position at the bottom center of the screen
+		var screen_size = get_viewport_rect().size
+		last_card_button.position = Vector2(screen_size.x / 2 - 100, screen_size.y - 100)
+		
+		# Connect the button to its handler
+		last_card_button.pressed.connect(_on_last_card_pressed)
+		
+		add_child(last_card_button)
 	
+	# Show the button
+	last_card_button.visible = true
+
+# Add this function to hide the Last Card button
+func hide_last_card_button():
+	if last_card_button != null:
+		last_card_button.visible = false
+
+# Add this function to handle the Last Card button press
+func _on_last_card_pressed():
+	last_card_declared = true
+	show_play_notification("Player " + str(current_turn + 1) + " declares Last Card!")
+	hide_last_card_button()
+
+func switch_turn():
+	# Skip turn switching if still waiting for player input
 	if waiting_for_defense or waiting_for_suit_selection:
 		return
 		
+	# Apply any accumulated card draws to the next player
 	if cards_to_draw > 0:
 		# Draw cards for the next player
+		var next_player = (current_turn + game_direction) % num_players
+		if next_player < 0:
+			next_player = num_players - 1
+			
 		for i in range(cards_to_draw):
-			var drawn_card = deck.draw_card(next_player_to_draw)
+			var drawn_card = deck.draw_card(next_player)
 			if drawn_card:
-				show_play_notification("Player " + str(next_player_to_draw + 1) + " drew a card")
+				print("Player " + str(next_player + 1) + " drew a card")
 		
-		show_play_notification("Player " + str(next_player_to_draw + 1) + " drew " + str(cards_to_draw) + " cards!")
+		show_play_notification("Player " + str(next_player + 1) + " drew " + str(cards_to_draw) + " cards!")
 		cards_to_draw = 0
 	
 	# Update current turn based on game direction
@@ -481,7 +833,7 @@ func switch_turn():
 	# Keep all hands visible for testing
 	for i in range(num_players):
 		hands[i].update_visibility(true)
-
+		
 func _on_card_clicked(card):
 	select_card(card)
 

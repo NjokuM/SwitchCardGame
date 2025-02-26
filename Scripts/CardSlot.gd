@@ -14,6 +14,18 @@ func _ready():
 	add_child(area)
 	
 	area.input_event.connect(_on_area_input_event)
+	
+	# Initial positioning
+	center_position()
+	
+	# Connect to window resize signals
+	get_tree().root.size_changed.connect(center_position)
+
+# Function to center the card slot on screen
+func center_position():
+	var screen_size = get_viewport_rect().size
+	position = Vector2(screen_size.x / 2, screen_size.y / 2)
+	print("Card slot positioned at center:", position)
 
 func can_place_card(card: Node2D) -> bool:
 	# Safety checks
@@ -53,8 +65,7 @@ func can_place_card(card: Node2D) -> bool:
 	return suit_matches or value_matches
 
 func place_card(card: Node2D):
-	print("DEBUG: Attempting to place card")
-	
+		
 	# First do a safety check without accessing potentially missing properties
 	if card == null:
 		print("DEBUG: Card is null in place_card")
@@ -62,7 +73,6 @@ func place_card(card: Node2D):
 	
 	# Try can_place_card in a safe way
 	var can_place = false
-	# We can't use try/except in GDScript 4, so we'll check differently
 	if card.get("value") != null and card.get("suit") != null:
 		can_place = can_place_card(card)
 	else:
@@ -74,13 +84,17 @@ func place_card(card: Node2D):
 		print("❌ Cannot place this card!")
 		return
 		
+	# Add the previous card to the discard pile before replacing it
+	if last_played_card and last_played_card != card:
+		add_to_discard_pile(last_played_card)
+		
 	# Add the card as a child of the CardSlot if it isn't already
 	if card.get_parent() != self:
 		if card.get_parent():
 			card.get_parent().remove_child(card)
 		add_child(card)
 	
-	# Position the card at the slot location
+	# Position the card at the center of the CardSlot (0,0 local position)
 	card.position = Vector2.ZERO
 	card.z_index = 10
 	card.visible = true
@@ -110,3 +124,12 @@ func _on_area_input_event(_viewport, event, _shape_idx):
 
 func get_last_played_card() -> Node2D:
 	return last_played_card
+
+# Add this function to add cards to the discard pile
+func add_to_discard_pile(card: Node2D):
+	if card and card.get("value") != null and card.get("suit") != null:
+		var card_data = {
+			"value": card.value,
+			"suit": card.suit
+		}
+		$"../Deck".add_to_discard_pile(card_data)

@@ -16,7 +16,7 @@ size = Vector2(250, 364)
 script = ExtResource("1_6frfv")
 
 [node name="CardSlot" parent="." instance=ExtResource("2_su65h")]
-metadata/_edit_lock_ = true
+position = Vector2(0, 0)
 
 [node name="Deck" type="Node2D" parent="."]
 position = Vector2(750, 800)

@@ -9,10 +9,24 @@ const CARDS_PER_PLAYER = 7
 var deck = []
 var discard_pile = []
 @onready var game_manager = $"../GameManager"
+@onready var card_slot = $"../CardSlot"
+
 func _ready() -> void:
 	await get_tree().process_frame
 	initialize_deck()
 	shuffle_deck()
+	
+	# Position the deck
+	position_deck()
+	
+	# Connect to window resize signals
+	get_tree().root.size_changed.connect(position_deck)
+	
+func position_deck():
+	var screen_size = get_viewport_rect().size
+	# Position the deck at the left side of the center
+	position = Vector2(screen_size.x / 2 - 400, screen_size.y / 2)
+	
 func initialize_deck():
 	deck.clear()
 	for suit in SUITS:
@@ -103,21 +117,40 @@ func return_card_to_deck(card: Node2D):
 	shuffle_deck()
 	print("✅ Card returned to deck:", card_data["value"], "of", card_data["suit"])
 func reshuffle_discard_pile():
+	print("Attempting to reshuffle discard pile...")
+	
+	# Check if we have any cards in the discard pile
 	if discard_pile.is_empty():
 		print("❌ No cards in discard pile to reshuffle!")
-		return
-
-	print("Reshuffling discard pile into deck...")
-
-	# Move all cards except the top card from card_slot to the deck
-	var top_card = discard_pile.pop_back()
-	deck = discard_pile.duplicate()
-	discard_pile.clear()
+		return false
+	
+	# Get the top card from the CardSlot
+	var top_card = card_slot.get_last_played_card()
+	
+	# Create a new array for the reshuffled deck
+	var reshuffled_deck = []
+	
+	# Add all cards from the discard pile to the reshuffled deck except the top card
+	for card_data in discard_pile:
+		# Skip the top card
+		if top_card and top_card.value == card_data.value and top_card.suit == card_data.suit:
+			continue
+		
+		reshuffled_deck.append(card_data)
+	
+	# Replace the deck with the reshuffled cards
+	deck = reshuffled_deck
+	
+	# Clear the discard pile (except for the top card)
+	discard_pile = []
+	
+	# If we have a top card, add it back to the discard pile
 	if top_card:
-		discard_pile.append(top_card)
-
+		discard_pile.append({"value": top_card.value, "suit": top_card.suit})
+	
+	print("Reshuffled " + str(deck.size()) + " cards back into the deck")
 	shuffle_deck()
-	print("✅ Discard pile reshuffled into deck")
+	return true
 func add_to_discard_pile(card_data: Dictionary):
 	discard_pile.append(card_data)
 # Helper function to get current deck size
