@@ -20,6 +20,7 @@ var defense_button_container = null
 var last_card_button = null
 var last_card_declared = false  # Track if player has declared last card
 var jack_count = 0  # Track how many Jacks were played
+var screen_center: Vector2
 
 func _ready():
 	# Add draw_card action if it doesn't exist
@@ -33,6 +34,10 @@ func _ready():
 	await get_tree().process_frame  
 	num_players = GameSettings.num_players  
 	print("Game started with", num_players, "players!")
+	update_screen_center()
+	# Connect to the window resize signal
+	get_tree().root.size_changed.connect(update_screen_center)
+
 	setup_play_label()
 	start_game()
 	
@@ -127,6 +132,15 @@ func show_play_notification(message: String):
 	# Create timer to hide the label
 	var timer = get_tree().create_timer(label_display_time)
 	timer.timeout.connect(func(): play_label.hide())
+	
+func update_screen_center():
+	var screen_size = get_viewport_rect().size
+	screen_center = Vector2(screen_size.x / 2, screen_size.y / 2)
+	print("Screen center updated:", screen_center)
+	
+	# Update card slot position
+	if card_slot:
+		card_slot.global_position = screen_center
 
 func start_game():
 	if hands.is_empty():
@@ -320,33 +334,55 @@ func play_selected_cards():
 	var sevens_count = 0
 	var jack_count = 0
 	var eights_count = 0
+	var has_king_of_hearts = false
+	var king_of_hearts_is_last = false
 	
 	# Check for Ace selection - only the LAST one matters
 	var has_ace = false
 	var last_ace_index = -1
 	
-	# Count Jacks and other special cards
+	# First pass - identify special cards and their positions
 	for i in range(selected_cards.size()):
-		if selected_cards[i].value == "Ace":
+		var card = selected_cards[i]
+		
+		if card.value == "Ace":
 			has_ace = true
 			last_ace_index = i
-		elif selected_cards[i].value == "Jack":
+		elif card.value == "Jack":
 			jack_count += 1
-		elif selected_cards[i].value == "7":
+		elif card.value == "7":
 			sevens_count += 1
-		elif selected_cards[i].value == "8" and num_players == 2:
+		elif card.value == "8" and num_players == 2:
 			eights_count += 1
+		elif card.value == "King" and card.suit == "Hearts":
+			has_king_of_hearts = true
+			# Check if this is the last card in the selection
+			if i == selected_cards.size() - 1:
+				king_of_hearts_is_last = true
 	
-	# Handle non-Ace cards and Aces before the last one
+	# Play the cards and handle effects
 	for i in range(selected_cards.size()):
 		var card = selected_cards[i]
 		hands[current_turn].remove_card(card)
 		card_slot.place_card(card)
 		played_cards_descriptions.append(str(card.value) + " of " + str(card.suit))
 		
-		# Only trigger special effects for the last card or non-Aces
-		if (card.value != "Ace") or (i == last_ace_index):
-			handle_power_card_effects(card, sevens_count)
+		# Handle special cases
+		if i == selected_cards.size() - 1:  # Last card
+			# For last card, handle all effects except King of Hearts (which we'll handle separately)
+			if card.value != "King" or card.suit != "Hearts":
+				handle_power_card_effects(card, sevens_count)
+		# For non-last cards, handle all effects except King of Hearts
+		elif card.value != "King" or card.suit != "Hearts":
+			if (card.value != "Ace") or (i == last_ace_index):
+				handle_power_card_effects(card, sevens_count)
+	
+	# Handle King of Hearts separately - only if it's the last card
+	if has_king_of_hearts and king_of_hearts_is_last:
+		var king_card = selected_cards[selected_cards.size() - 1]
+		# Only apply King of Hearts effect if it's actually the last card
+		if king_card.value == "King" and king_card.suit == "Hearts":
+			handle_king_of_hearts_effect()
 	
 	# Join the card descriptions with commas
 	var played_cards_text = ", ".join(played_cards_descriptions)
@@ -404,6 +440,23 @@ func play_selected_cards():
 	if not skip_turn_switch and not waiting_for_defense and not waiting_for_suit_selection:
 		switch_turn()
 		
+func handle_king_of_hearts_effect():
+	# Calculate next player
+	next_player_to_draw = (current_turn + game_direction) % num_players
+	if next_player_to_draw < 0:
+		next_player_to_draw = num_players - 1
+		
+	# Check if next player has a 5 of Hearts or 2 of Hearts to defend
+	if has_card_in_hand(next_player_to_draw, "5", "Hearts") or has_card_in_hand(next_player_to_draw, "2", "Hearts"):
+		waiting_for_defense = true
+		current_attacker = current_turn
+		cards_to_draw = 5
+		show_play_notification("Player " + str(next_player_to_draw + 1) + " can defend against King of Hearts!")
+		show_defense_ui("KingOfHearts")
+	else:
+		cards_to_draw = 5
+		print("Player ", next_player_to_draw + 1, " will draw ", cards_to_draw, " cards")
+		
 func handle_power_card_effects(card, sevens_count = 0):
 	match card.value:
 		"2":
@@ -423,6 +476,22 @@ func handle_power_card_effects(card, sevens_count = 0):
 			else:
 				cards_to_draw = 2
 				print("Player ", next_player_to_draw + 1, " will draw ", cards_to_draw, " cards")
+				
+				# Important fix for 2-player mode
+				if num_players == 2:
+					waiting_for_defense = false
+					
+					# Force the next player to draw cards now
+					for i in range(cards_to_draw):
+						var drawn_card = deck.draw_card(next_player_to_draw)
+						if drawn_card:
+							print("Player " + str(next_player_to_draw + 1) + " drew a card")
+					
+					cards_to_draw = 0
+					show_play_notification("Player " + str(next_player_to_draw + 1) + " draws cards and loses turn")
+					
+					# Skip their turn entirely - current player plays again
+					skip_turn_switch = true
 			
 		"7":
 			# Handle multiple 7s correctly across all player counts

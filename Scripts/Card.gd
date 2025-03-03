@@ -14,8 +14,8 @@ var chosen_suit: String = ""  # For Aces
 
 
 # Constants for visual feedback
-const HOVER_OFFSET = -20
-const SELECTION_OFFSET = -30
+const HOVER_OFFSET = -50
+const SELECTION_OFFSET = -80
 const ANIMATION_DURATION = 0.2
 
 func set_card_data(card_value: String, card_suit: String):
