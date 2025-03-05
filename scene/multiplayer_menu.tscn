@@ -1,0 +1,118 @@
+[gd_scene load_steps=4 format=3 uid="uid://cckwrpdb1yle0"]
+
+[ext_resource type="Script" path="res://Scripts/multiplayer_menu.gd" id="1_vevgw"]
+[ext_resource type="Texture2D" uid="uid://dew66su4ank75" path="res://assets/10059426.jpg" id="2_yiw1c"]
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_dh3xn"]
+texture = ExtResource("2_yiw1c")
+modulate_color = Color(0.360784, 0.360784, 0.360784, 1)
+
+[node name="MultiplayerMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_vevgw")
+
+[node name="Panel" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxTexture_dh3xn")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -499.5
+offset_top = -372.5
+offset_right = 499.5
+offset_bottom = 372.5
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Label" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 6
+theme_override_font_sizes/font_size = 48
+text = "SW!TCH Multiplayer"
+
+[node name="HSeparator" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="PlayerNameLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Your Name:"
+
+[node name="PlayerNameInput" type="LineEdit" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+placeholder_text = "Enter your name"
+
+[node name="IPLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Server IP Address"
+
+[node name="IPInput" type="LineEdit" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+placeholder_text = "127.0.0.1"
+
+[node name="HostButton" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "Host Game"
+
+[node name="JoinButton" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "Join Game"
+
+[node name="ReadyButton" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_pressed_color = Color(0, 0.992157, 0, 1)
+theme_override_font_sizes/font_size = 28
+text = "Ready to Play!"
+
+[node name="HSeparator2" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="StatusLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Enter your name and host or join a game"
+
+[node name="PlayerListLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+text = "Players:"
+
+[node name="PlayerList" type="ItemList" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="StartGameButton" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "Start Game"
+
+[node name="BackButton" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Back to Menu"
+
+[connection signal="pressed" from="VBoxContainer/HostButton" to="." method="_on_host_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/JoinButton" to="." method="_on_join_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/ReadyButton" to="." method="_on_ready_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/StartGameButton" to="." method="_on_start_game_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/BackButton" to="." method="_on_back_button_pressed"]
