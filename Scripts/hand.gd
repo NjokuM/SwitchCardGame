@@ -1,9 +1,9 @@
 extends Node2D
 
 @export var player_position: int = 0
-@export var is_player: bool = false
-const CARD_WIDTH = 200  # Increased from 150
-const CARD_SPACING = 30  # Additional spacing between cards
+@export var is_player: bool = false  # Whether this is the local player's hand
+const CARD_WIDTH = 200
+const CARD_SPACING = 30
 const DEFAULT_CARD_MOVE_SPEED = 0.33
 const BACK_OF_CARD_TEXTURE = preload("res://assets/BACK.png")
 
@@ -11,8 +11,6 @@ var hand = []
 var center_screen_x
 
 func _ready() -> void:
-	center_screen_x = get_viewport().size.x / 2
-	
 	center_screen_x = get_viewport().size.x / 2
 	
 	# Connect to window resize signals
@@ -28,6 +26,11 @@ func add_card(card: Node2D, speed: float):
 		card.pressed.connect(get_node("/root/Main/GameManager")._on_card_clicked.bind(card))
 		update_positions(speed)
 		print("✅ Card added:", card.value, "of", card.suit, "to Player", player_position + 1)
+		
+		# Update card visibility as soon as it's added
+		if !is_player:
+			# Hide card face for opponents' cards
+			card.get_node("CardFaceImage").texture = BACK_OF_CARD_TEXTURE
 	else:
 		print("❌ Error: Duplicate card detected!")
 
@@ -52,13 +55,23 @@ func remove_card(card: Node2D):
 		hand.erase(card)
 		update_positions(DEFAULT_CARD_MOVE_SPEED)
 
-func update_visibility(is_active_player):
-	print("🔍 Updating visibility for Player", player_position + 1, "Active:", is_active_player)
+# Improved function to handle card visibility
+func update_visibility(show_card_faces: bool):
+	print("🔍 Updating visibility for Player", player_position + 1, "Show faces:", show_card_faces)
 	
 	for card in hand:
-		if is_active_player or is_player:
-			card.visible = true
+		# Cards are always visible, but we change their texture
+		card.visible = true
+		
+		if show_card_faces:
+			# Show the actual card face
+			card.get_node("CardFaceImage").visible = true
 			card.get_node("CardFaceImage").texture = card.face_texture
+			if card.has_node("CardBackImage"):
+				card.get_node("CardBackImage").visible = false
 		else:
-			card.visible = true
+			# Show the card back
+			card.get_node("CardFaceImage").visible = true
 			card.get_node("CardFaceImage").texture = BACK_OF_CARD_TEXTURE
+			if card.has_node("CardBackImage"):
+				card.get_node("CardBackImage").visible = false

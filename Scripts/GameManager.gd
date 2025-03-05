@@ -82,12 +82,28 @@ func _ready_network_setup():
 			# Set up RPCs
 			if multiplayer:
 				multiplayer.peer_disconnected.connect(_on_player_disconnected)
+			
+			# Call for initial setup specific to networked games
+			setup_networked_game()
 		else:
 			print("⚠️ Warning: No player info found in NetworkManager")
 			is_networked_game = false
 	else:
 		print("Starting single player or local multiplayer game")
 		is_networked_game = false
+
+# Add this new function to handle networked game-specific setup
+func setup_networked_game():
+	# This gets called after player positions are determined
+	print("Setting up networked game for player", my_peer_id)
+	
+	# Connect to window resize signals for proper layout
+	get_tree().root.size_changed.connect(reposition_player_hands)
+	get_tree().root.size_changed.connect(func(): update_hand_visibility())
+	
+	# Make sure to call reposition on first load
+	await get_tree().process_frame
+	reposition_player_hands()
 
 # Add this function to handle player disconnections
 func _on_player_disconnected(id):
@@ -121,32 +137,83 @@ func reposition_player_hands():
 	var screen_size = get_viewport_rect().size
 	var margin = 100
 	
-	var positions = []
-	match num_players:
-		2:
-			positions = [
-				Vector2(screen_size.x / 2, screen_size.y - margin),  # Bottom
-				Vector2(screen_size.x / 2, margin)  # Top
-			]
-		3:
-			positions = [
-				Vector2(screen_size.x / 2, screen_size.y - margin),  # Bottom
-				Vector2(margin, screen_size.y / 2),  # Left
-				Vector2(screen_size.x - margin, screen_size.y / 2)  # Right
-			]
-		4:
-			positions = [
-				Vector2(screen_size.x / 2, screen_size.y - margin),  # Bottom
-				Vector2(screen_size.x / 2, margin),  # Top
-				Vector2(margin, screen_size.y / 2),  # Left
-				Vector2(screen_size.x - margin, screen_size.y / 2)  # Right
-			]
-	
-	# Update hand positions
-	for i in range(hands.size()):
-		if i < positions.size():
-			hands[i].position = positions[i]
-			hands[i].update_positions(0.2)  # Small animation duration
+	# Different positioning logic based on whether we're in a networked game
+	if is_networked_game:
+		# Find which position is the local player
+		var local_position = -1
+		if player_positions.has(my_peer_id):
+			local_position = player_positions[my_peer_id]
+		
+		if local_position >= 0 and local_position < hands.size():
+			# Always position local player's hand at the bottom
+			hands[local_position].position = Vector2(screen_size.x / 2, screen_size.y - margin)
+			hands[local_position].rotation = 0  # No rotation for local player
+			
+			# For 2 players, opponent is always at top
+			if num_players == 2:
+				var opponent_idx = (local_position + 1) % 2
+				hands[opponent_idx].position = Vector2(screen_size.x / 2, margin)
+				hands[opponent_idx].rotation = PI
+			
+			# For 3 players, opponents are left and right
+			elif num_players == 3:
+				var opponent1_idx = (local_position + 1) % 3
+				var opponent2_idx = (local_position + 2) % 3
+				
+				hands[opponent1_idx].position = Vector2(margin, screen_size.y / 2)
+				hands[opponent1_idx].rotation = PI/2
+				
+				hands[opponent2_idx].position = Vector2(screen_size.x - margin, screen_size.y / 2)
+				hands[opponent2_idx].rotation = -PI/2
+			
+			# For 4 players, opponents are top, left, and right
+			elif num_players == 4:
+				var opponent1_idx = (local_position + 1) % 4
+				var opponent2_idx = (local_position + 2) % 4
+				var opponent3_idx = (local_position + 3) % 4
+				
+				hands[opponent1_idx].position = Vector2(margin, screen_size.y / 2)
+				hands[opponent1_idx].rotation = PI/2
+				
+				hands[opponent2_idx].position = Vector2(screen_size.x / 2, margin)
+				hands[opponent2_idx].rotation = PI
+				
+				hands[opponent3_idx].position = Vector2(screen_size.x - margin, screen_size.y / 2)
+				hands[opponent3_idx].rotation = -PI/2
+			
+			# Update all hand positions with a small animation
+			for hand in hands:
+				hand.update_positions(0.2)
+		else:
+			print("⚠️ Warning: Local player position not found for hand repositioning")
+	else:
+		# Original local positioning
+		var positions = []
+		match num_players:
+			2:
+				positions = [
+					Vector2(screen_size.x / 2, screen_size.y - margin),  # Bottom
+					Vector2(screen_size.x / 2, margin)  # Top
+				]
+			3:
+				positions = [
+					Vector2(screen_size.x / 2, screen_size.y - margin),  # Bottom
+					Vector2(margin, screen_size.y / 2),  # Left
+					Vector2(screen_size.x - margin, screen_size.y / 2)  # Right
+				]
+			4:
+				positions = [
+					Vector2(screen_size.x / 2, screen_size.y - margin),  # Bottom
+					Vector2(screen_size.x / 2, margin),  # Top
+					Vector2(margin, screen_size.y / 2),  # Left
+					Vector2(screen_size.x - margin, screen_size.y / 2)  # Right
+				]
+		
+		# Update hand positions
+		for i in range(hands.size()):
+			if i < positions.size():
+				hands[i].position = positions[i]
+				hands[i].update_positions(0.2)  # Small animation duration
 
 func setup_play_label():
 	# Create label if it doesn't exist
@@ -253,7 +320,6 @@ func is_power_card(card) -> bool:
 		return true
 	return false
 	
-
 func create_player_hands():
 	var screen_size = get_viewport_rect().size
 	var margin = 100  # Margin from screen edges
@@ -292,7 +358,7 @@ func create_player_hands():
 			
 		var hand = hand_scene.instantiate()
 		
-		# In networked mode, only the local player's hand is fully visible
+		# In networked mode, only the local player's hand should be fully visible
 		if is_networked_game:
 			var local_position = -1
 			
@@ -300,6 +366,7 @@ func create_player_hands():
 			if player_positions.has(my_peer_id):
 				local_position = player_positions[my_peer_id]
 				
+			# Set whether this is the local player's hand
 			hand.is_player = (i == local_position)
 		else:
 			hand.is_player = true  # In local mode, all hands are visible
@@ -307,36 +374,86 @@ func create_player_hands():
 		hand.position = positions[i]
 		hand.player_position = i
 		
-		# Set rotation based on position and number of players
-		if num_players == 2:
-			hand.rotation = PI if i == 1 else 0
+		# Handle rotation based on player positions
+		if is_networked_game:
+			# In networked game, each player sees their hand at the bottom
+			# This means we shouldn't rotate the hand if it's the local player's
+			var local_position = -1
+			if player_positions.has(my_peer_id):
+				local_position = player_positions[my_peer_id]
+				
+			if i == local_position:
+				# Local player's hand should always be upright (no rotation)
+				hand.rotation = 0
+			else:
+				# For opponents, calculate relative position
+				var relative_pos = (i - local_position) % num_players
+				if relative_pos < 0:
+					relative_pos += num_players
+					
+				# Apply rotation based on relative position
+				match num_players:
+					2:  # In 2-player game, opponent is always at top (180 degrees)
+						hand.rotation = PI
+					3:  # In 3-player game, other positions are left/right
+						if relative_pos == 1:  # Player to the left
+							hand.rotation = PI/2
+						elif relative_pos == 2:  # Player to the right
+							hand.rotation = -PI/2
+					4:  # In 4-player game, opponents are at top, left, right
+						if relative_pos == 1:  # Player to the left
+							hand.rotation = PI/2
+						elif relative_pos == 2:  # Player opposite (top)
+							hand.rotation = PI
+						elif relative_pos == 3:  # Player to the right
+							hand.rotation = -PI/2
 		else:
-			match i:
-				0: hand.rotation = 0  # Bottom player
-				1: 
-					if num_players == 3:
-						hand.rotation = PI/2  # Left player
-					else:
-						hand.rotation = PI  # Top player in 4-player game
-				2: 
-					hand.rotation = -PI/2  # Right player
-				3: 
-					hand.rotation = -PI/2  # Right player in 4-player game
+			# For local games, use the original rotation logic
+			if num_players == 2:
+				hand.rotation = PI if i == 1 else 0
+			else:
+				match i:
+					0: hand.rotation = 0  # Bottom player
+					1: 
+						if num_players == 3:
+							hand.rotation = PI/2  # Left player
+						else:
+							hand.rotation = PI  # Top player in 4-player game
+					2: 
+						if num_players == 3:
+							hand.rotation = -PI/2  # Right player
+						else:
+							hand.rotation = PI/2  # Left player in 4-player game
+					3: 
+						hand.rotation = -PI/2  # Right player in 4-player game
 		
 		add_child(hand)
 		hands.append(hand)
 		
-		# Update visibility based on whether this is the local player in networked mode
-		if is_networked_game:
-			if player_positions.has(my_peer_id):
-				var local_position = player_positions[my_peer_id]
-				hand.update_visibility(i == local_position)
-			else:
-				hand.update_visibility(true)  # Fallback if player position unknown
-		else:
-			hand.update_visibility(true)  # In local mode show all hands
-			
+		# Set hand visibility based on whether this is local player or not
+		update_hand_visibility()
+		
 		print("✅ Hand added for Player", i + 1, "at", positions[i])
+
+# Improved hand visibility function
+func update_hand_visibility():
+	if is_networked_game:
+		# In networked mode, all hands are visible but only show faces for local player
+		var local_position = -1
+		if player_positions.has(my_peer_id):
+			local_position = player_positions[my_peer_id]
+		
+		for i in range(hands.size()):
+			if i == local_position:
+				# For local player's hand, show card faces
+				hands[i].update_visibility(true)
+			else:
+				# For opponent hands, show card backs
+				hands[i].update_visibility(false)
+	else:
+		# In local mode, show all hands' faces
+		for hand in hands:
+			hand.update_visibility(true)
 
 # Network version for drawing cards
 @rpc("any_peer", "call_local")
@@ -621,7 +738,7 @@ func play_selected_cards_internal():
 			
 		show_play_notification(extra_message)
 	
-	# Check for win condition
+# Check for win condition
 	if hands[current_turn].hand.is_empty():
 		# Check if the last card played was a power card
 		var last_card = selected_cards[selected_cards.size() - 1]
@@ -1150,21 +1267,6 @@ func network_switch_turn(new_turn, new_direction):
 	
 	# Update hand visibility
 	update_hand_visibility()
-
-# Internal function to update hand visibility based on current turn
-func update_hand_visibility():
-	if is_networked_game:
-		# In networked mode, only show cards for local player
-		var local_position = -1
-		if player_positions.has(my_peer_id):
-			local_position = player_positions[my_peer_id]
-		
-		for i in range(hands.size()):
-			hands[i].update_visibility(i == local_position)
-	else:
-		# In local mode, show all hands
-		for i in range(hands.size()):
-			hands[i].update_visibility(true)
 
 func switch_turn():
 	# Skip turn switching if still waiting for player input
