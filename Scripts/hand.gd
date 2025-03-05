@@ -1,7 +1,7 @@
 extends Node2D
 
 @export var player_position: int = 0
-@export var is_player: bool = true
+@export var is_player: bool = false
 const CARD_WIDTH = 200  # Increased from 150
 const CARD_SPACING = 30  # Additional spacing between cards
 const DEFAULT_CARD_MOVE_SPEED = 0.33
