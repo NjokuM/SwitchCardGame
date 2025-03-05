@@ -1,7 +1,7 @@
 extends Control
 
 func _on_multiplayer_button_pressed() -> void:
-	pass # Replace with function body.
+	get_tree().change_scene_to_file("res://scene/multiplayer_menu.tscn")
 
 func _on_local_button_pressed() -> void:
 	pass # Replace with function body.
