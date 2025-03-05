@@ -20,7 +20,11 @@ var defense_button_container = null
 var last_card_button = null
 var last_card_declared = false  # Track if player has declared last card
 var jack_count = 0  # Track how many Jacks were played
-var screen_center: Vector2
+
+# Networking variables
+var is_networked_game = false
+var player_positions = {} # Maps peer_ids to player positions
+var my_peer_id = 0
 
 func _ready():
 	# Add draw_card action if it doesn't exist
@@ -30,19 +34,74 @@ func _ready():
 		event.keycode = KEY_D  # Or any key you prefer
 		InputMap.action_add_event("draw_card", event)
 	
-	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+	# Only set fullscreen in standalone mode
+	if OS.has_feature("standalone"):
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+	
 	await get_tree().process_frame  
-	num_players = GameSettings.num_players  
+	
+	# Check if we're coming from the network setup
+	var network = get_node_or_null("/root/NetworkManager")
+	if network and network.player_info.size() > 0:
+		# Only setup network if we're coming from multiplayer menu
+		_ready_network_setup()
+		# Use number of players from network
+		num_players = player_positions.size()
+		
+		# Ensure we have at least 2 players in network mode
+		if num_players < 2:
+			num_players = 2  # Fallback to minimum
+			
+		print("Networked game with " + str(num_players) + " players")
+	else:
+		# We're in local mode - don't even attempt network setup
+		is_networked_game = false
+		num_players = GameSettings.num_players
+		print("Local game with " + str(num_players) + " players from GameSettings")
+	
 	print("Game started with", num_players, "players!")
-	update_screen_center()
-	# Connect to the window resize signal
-	get_tree().root.size_changed.connect(update_screen_center)
-
 	setup_play_label()
 	start_game()
+
+# Network setup
+func _ready_network_setup():
+	# Check if we're in a networked game
+	var network = get_node_or_null("/root/NetworkManager")
+	if network:
+		is_networked_game = true
+		my_peer_id = network.multiplayer.get_unique_id()
+		
+		# Map player positions from network info
+		if network.player_info.size() > 0:
+			for peer_id in network.player_info:
+				player_positions[peer_id] = network.player_info[peer_id].position
+			
+			print("Networked game started. My peer ID: ", my_peer_id)
+			print("Player positions: ", player_positions)
+			
+			# Set up RPCs
+			if multiplayer:
+				multiplayer.peer_disconnected.connect(_on_player_disconnected)
+		else:
+			print("⚠️ Warning: No player info found in NetworkManager")
+			is_networked_game = false
+	else:
+		print("Starting single player or local multiplayer game")
+		is_networked_game = false
+
+# Add this function to handle player disconnections
+func _on_player_disconnected(id):
+	if is_networked_game:
+		# Only process if we have valid player info
+		if player_positions.has(id):
+			# Handle player disconnection - can pause, end game, or replace with AI
+			show_play_notification("Player " + str(player_positions[id] + 1) + " disconnected!")
+			
+			# Example: If it's their turn, skip it
+			if current_turn == player_positions[id]:
+				switch_turn()
 	
-	
-# Add this function to handle screen resizing
+# Add this to handle screen resizing
 func reposition_all_game_elements():
 	# Update card slot position
 	card_slot.center_position()
@@ -126,21 +185,26 @@ func setup_play_label():
 	play_label.hide()
 
 func show_play_notification(message: String):
-	play_label.text = message
-	play_label.show()
-	
-	# Create timer to hide the label
-	var timer = get_tree().create_timer(label_display_time)
-	timer.timeout.connect(func(): play_label.hide())
-	
-func update_screen_center():
-	var screen_size = get_viewport_rect().size
-	screen_center = Vector2(screen_size.x / 2, screen_size.y / 2)
-	print("Screen center updated:", screen_center)
-	
-	# Update card slot position
-	if card_slot:
-		card_slot.global_position = screen_center
+	if play_label:
+		play_label.text = message
+		play_label.show()
+		
+		# Check if we can create a timer
+		if Engine.is_in_physics_frame() and get_tree():
+			var timer = get_tree().create_timer(label_display_time)
+			if timer:
+				timer.timeout.connect(func(): if play_label: play_label.hide())
+		else:
+			# Manual timeout as fallback
+			var start_time = Time.get_ticks_msec()
+			var timer_process = func():
+				if Time.get_ticks_msec() - start_time > label_display_time * 1000:
+					if play_label:
+						play_label.hide()
+					set_process(false)
+			set_process(true)
+	else:
+		print("Play notification (no label): " + message)
 
 func start_game():
 	if hands.is_empty():
@@ -148,11 +212,27 @@ func start_game():
 	print("Created hands. Now dealing cards...")
 	await deck.deal_initial_cards()
 	
-	var first_card = draw_valid_starting_card()
-	if first_card:
-		card_slot.place_card(first_card)
+	var network = get_node_or_null("/root/NetworkManager")
+	var is_networked = network and network.multiplayer and network.player_info.size() > 0
+	
+	if !is_networked or network.multiplayer.is_server():
+		var first_card = draw_valid_starting_card()
+		if first_card:
+			if !is_networked:
+				# Local mode - place card directly
+				card_slot.place_card(first_card)
+			else:
+				# Networked mode - server places locally and uses RPC for clients
+				card_slot.place_card(first_card)
+				place_card_networked.rpc(first_card.value, first_card.suit)
+	
 	print("Finished dealing cards. Starting turn for Player", current_turn + 1)
-
+	
+@rpc("authority", "call_remote", "reliable")  # Change to call_remote
+func place_card_networked(value: String, suit: String):
+	var new_card = deck.create_card_from_data(value, suit)
+	card_slot.place_card(new_card)
+	
 func draw_valid_starting_card():
 	var card = deck.draw_card_for_slot()
 	while card and is_power_card(card):
@@ -172,6 +252,7 @@ func is_power_card(card) -> bool:
 	if card.value == "2" and card.suit == "Hearts":
 		return true
 	return false
+	
 
 func create_player_hands():
 	var screen_size = get_viewport_rect().size
@@ -210,7 +291,19 @@ func create_player_hands():
 			return
 			
 		var hand = hand_scene.instantiate()
-		hand.is_player = true  # Make all hands playable for testing
+		
+		# In networked mode, only the local player's hand is fully visible
+		if is_networked_game:
+			var local_position = -1
+			
+			# Find which position the local player has
+			if player_positions.has(my_peer_id):
+				local_position = player_positions[my_peer_id]
+				
+			hand.is_player = (i == local_position)
+		else:
+			hand.is_player = true  # In local mode, all hands are visible
+			
 		hand.position = positions[i]
 		hand.player_position = i
 		
@@ -232,30 +325,113 @@ func create_player_hands():
 		
 		add_child(hand)
 		hands.append(hand)
-		hand.update_visibility(true)  # Always show all hands for testing
+		
+		# Update visibility based on whether this is the local player in networked mode
+		if is_networked_game:
+			if player_positions.has(my_peer_id):
+				var local_position = player_positions[my_peer_id]
+				hand.update_visibility(i == local_position)
+			else:
+				hand.update_visibility(true)  # Fallback if player position unknown
+		else:
+			hand.update_visibility(true)  # In local mode show all hands
+			
 		print("✅ Hand added for Player", i + 1, "at", positions[i])
 
+# Network version for drawing cards
+@rpc("any_peer", "call_local")
+func network_draw_card(peer_id):
+	# Find which player this peer is
+	if not player_positions.has(peer_id):
+		print("Error: Unknown peer tried to draw a card: ", peer_id)
+		return
+	
+	var player_position = player_positions[peer_id]
+	
+	# Verify it's their turn
+	if player_position != current_turn:
+		print("Error: Player tried to draw a card out of turn")
+		return
+	
+	# Call the original draw logic
+	draw_card_for_player(player_position)
+
+# Modified draw card function that supports both network and local play
 func draw_card_for_current_player():
 	print("DEBUG: Attempting to draw for Player " + str(current_turn + 1))
 	
-	# Pass the current_turn to draw_card
-	var drawn_card = deck.draw_card(current_turn)
+	if is_networked_game:
+		network_draw_card.rpc(my_peer_id)
+	else:
+		# Local gameplay
+		draw_card_for_player(current_turn)
+
+# Internal draw card function used by both local and networked versions
+func draw_card_for_player(player_position):
+	print("DEBUG: Drawing card for Player " + str(player_position + 1))
+	
+	var drawn_card = deck.draw_card(player_position)
 	
 	if drawn_card:
-		show_play_notification("Player " + str(current_turn + 1) + " drew a card")
-		# Switch turn AFTER drawing is complete
+		show_play_notification("Player " + str(player_position + 1) + " drew a card")
+		
+	# For networked games, the server will handle the turn switching through RPCs
+	# For local games, switch turn directly
+	if !is_networked_game:
 		switch_turn()
 	
 	return drawn_card
 
+# Network version of card selection
+@rpc("any_peer", "call_local")
+func network_select_card(peer_id, card_value, card_suit):
+	# Find which player position this peer is using
+	if not player_positions.has(peer_id):
+		print("Error: Unknown peer tried to select card: ", peer_id)
+		return
+	
+	var player_position = player_positions[peer_id]
+	
+	# Verify it's their turn
+	if player_position != current_turn:
+		print("Error: Player tried to select card out of turn")
+		return
+	
+	# Find the card in the player's hand by value and suit
+	var card_to_select = null
+	for card in hands[player_position].hand:
+		if card.value == card_value and card.suit == card_suit:
+			card_to_select = card
+			break
+	
+	if card_to_select:
+		# Call internal selection logic
+		select_card_internal(card_to_select)
+	else:
+		print("Error: Card not found in player's hand:", card_value, "of", card_suit)
+
+# Modified select_card that supports both network and local play
 func select_card(card):
-	if not is_current_player_turn() or not card:
-		print("Not current player's turn or invalid card")
+	if not card:
+		print("Invalid card")
 		return
 		
 	# Check if card has required properties
 	if not ("value" in card) or not ("suit" in card):
 		print("❌ Card missing required properties in select_card")
+		return
+	
+	if is_networked_game:
+		# In networked game, send selection via RPC
+		network_select_card.rpc(my_peer_id, card.value, card.suit)
+	else:
+		# Local gameplay, use internal function directly
+		select_card_internal(card)
+
+# Internal select_card implementation used by both local and network versions
+func select_card_internal(card):
+	if not is_current_player_turn() or not card:
+		print("Not current player's turn or invalid card")
 		return
 		
 	# Make sure the card is actually in the current player's hand
@@ -285,7 +461,6 @@ func select_card(card):
 			# Now we can safely print the card properties
 			print("Trying to play:", card.value, "of", card.suit)
 
-# In GameManager.gd, update the can_select_card function:
 func can_select_card(card) -> bool:
 	# First card must match the card in slot
 	if selected_cards.is_empty():
@@ -312,9 +487,71 @@ func can_select_card(card) -> bool:
 	return value_matches
 
 func is_current_player_turn() -> bool:
-	return true  # For testing, allow all actions
+	if is_networked_game:
+		# Check if it's the local player's turn
+		if player_positions.has(my_peer_id):
+			var local_position = player_positions[my_peer_id]
+			return current_turn == local_position
+		return false
+	else:
+		return true  # For local testing, allow all actions
+
+# Network version of playing cards
+@rpc("any_peer", "call_local")
+func network_play_cards(peer_id, card_data_array):
+	# This function is called on all clients when a player plays cards
 	
+	# Find which player position this peer is using
+	if not player_positions.has(peer_id):
+		print("Error: Unknown peer ID tried to play cards: ", peer_id)
+		return
+	
+	var player_position = player_positions[peer_id]
+	
+	# Verify it's their turn
+	if player_position != current_turn:
+		print("Error: Player tried to play cards out of turn")
+		return
+	
+	# Recreate selected cards from the data
+	selected_cards = []
+	
+	for card_dict in card_data_array:
+		# Find the card in the player's hand by value and suit
+		for card in hands[player_position].hand:
+			if card.value == card_dict.value and card.suit == card_dict.suit:
+				selected_cards.append(card)
+				break
+	
+	# Now call the original play_selected_cards logic
+	play_selected_cards_internal()
+
+# Modified play_selected_cards to support both network and local play
 func play_selected_cards():
+	if selected_cards.is_empty():
+		return
+		
+	if not card_slot.can_place_card(selected_cards[0]):
+		print("Cannot play these cards!")
+		return
+	
+	if is_networked_game:
+		# Convert selected cards to data dictionary for network transmission
+		var card_data = []
+		for card in selected_cards:
+			card_data.append({
+				"value": card.value,
+				"suit": card.suit
+			})
+		
+		# Send to all clients
+		network_play_cards.rpc(my_peer_id, card_data)
+	else:
+		# Local game, just play the cards
+		play_selected_cards_internal()
+
+# Internal play_selected_cards implementation used by both local and network versions
+func play_selected_cards_internal():
 	if selected_cards.is_empty():
 		return
 		
@@ -334,55 +571,33 @@ func play_selected_cards():
 	var sevens_count = 0
 	var jack_count = 0
 	var eights_count = 0
-	var has_king_of_hearts = false
-	var king_of_hearts_is_last = false
 	
 	# Check for Ace selection - only the LAST one matters
 	var has_ace = false
 	var last_ace_index = -1
 	
-	# First pass - identify special cards and their positions
+	# Count Jacks and other special cards
 	for i in range(selected_cards.size()):
-		var card = selected_cards[i]
-		
-		if card.value == "Ace":
+		if selected_cards[i].value == "Ace":
 			has_ace = true
 			last_ace_index = i
-		elif card.value == "Jack":
+		elif selected_cards[i].value == "Jack":
 			jack_count += 1
-		elif card.value == "7":
+		elif selected_cards[i].value == "7":
 			sevens_count += 1
-		elif card.value == "8" and num_players == 2:
+		elif selected_cards[i].value == "8" and num_players == 2:
 			eights_count += 1
-		elif card.value == "King" and card.suit == "Hearts":
-			has_king_of_hearts = true
-			# Check if this is the last card in the selection
-			if i == selected_cards.size() - 1:
-				king_of_hearts_is_last = true
 	
-	# Play the cards and handle effects
+	# Handle non-Ace cards and Aces before the last one
 	for i in range(selected_cards.size()):
 		var card = selected_cards[i]
 		hands[current_turn].remove_card(card)
 		card_slot.place_card(card)
 		played_cards_descriptions.append(str(card.value) + " of " + str(card.suit))
 		
-		# Handle special cases
-		if i == selected_cards.size() - 1:  # Last card
-			# For last card, handle all effects except King of Hearts (which we'll handle separately)
-			if card.value != "King" or card.suit != "Hearts":
-				handle_power_card_effects(card, sevens_count)
-		# For non-last cards, handle all effects except King of Hearts
-		elif card.value != "King" or card.suit != "Hearts":
-			if (card.value != "Ace") or (i == last_ace_index):
-				handle_power_card_effects(card, sevens_count)
-	
-	# Handle King of Hearts separately - only if it's the last card
-	if has_king_of_hearts and king_of_hearts_is_last:
-		var king_card = selected_cards[selected_cards.size() - 1]
-		# Only apply King of Hearts effect if it's actually the last card
-		if king_card.value == "King" and king_card.suit == "Hearts":
-			handle_king_of_hearts_effect()
+		# Only trigger special effects for the last card or non-Aces
+		if (card.value != "Ace") or (i == last_ace_index):
+			handle_power_card_effects(card, sevens_count)
 	
 	# Join the card descriptions with commas
 	var played_cards_text = ", ".join(played_cards_descriptions)
@@ -440,23 +655,6 @@ func play_selected_cards():
 	if not skip_turn_switch and not waiting_for_defense and not waiting_for_suit_selection:
 		switch_turn()
 		
-func handle_king_of_hearts_effect():
-	# Calculate next player
-	next_player_to_draw = (current_turn + game_direction) % num_players
-	if next_player_to_draw < 0:
-		next_player_to_draw = num_players - 1
-		
-	# Check if next player has a 5 of Hearts or 2 of Hearts to defend
-	if has_card_in_hand(next_player_to_draw, "5", "Hearts") or has_card_in_hand(next_player_to_draw, "2", "Hearts"):
-		waiting_for_defense = true
-		current_attacker = current_turn
-		cards_to_draw = 5
-		show_play_notification("Player " + str(next_player_to_draw + 1) + " can defend against King of Hearts!")
-		show_defense_ui("KingOfHearts")
-	else:
-		cards_to_draw = 5
-		print("Player ", next_player_to_draw + 1, " will draw ", cards_to_draw, " cards")
-		
 func handle_power_card_effects(card, sevens_count = 0):
 	match card.value:
 		"2":
@@ -476,22 +674,6 @@ func handle_power_card_effects(card, sevens_count = 0):
 			else:
 				cards_to_draw = 2
 				print("Player ", next_player_to_draw + 1, " will draw ", cards_to_draw, " cards")
-				
-				# Important fix for 2-player mode
-				if num_players == 2:
-					waiting_for_defense = false
-					
-					# Force the next player to draw cards now
-					for i in range(cards_to_draw):
-						var drawn_card = deck.draw_card(next_player_to_draw)
-						if drawn_card:
-							print("Player " + str(next_player_to_draw + 1) + " drew a card")
-					
-					cards_to_draw = 0
-					show_play_notification("Player " + str(next_player_to_draw + 1) + " draws cards and loses turn")
-					
-					# Skip their turn entirely - current player plays again
-					skip_turn_switch = true
 			
 		"7":
 			# Handle multiple 7s correctly across all player counts
@@ -564,6 +746,9 @@ func handle_power_card_effects(card, sevens_count = 0):
 
 # Add this function to check if a player has a specific card
 func has_card_in_hand(player_index, value, suit = null):
+	if player_index < 0 or player_index >= hands.size():
+		return false
+		
 	for card in hands[player_index].hand:
 		if card.value == value:
 			if suit == null or card.suit == suit:
@@ -574,6 +759,17 @@ func has_card_in_hand(player_index, value, suit = null):
 func show_defense_ui(attack_type):
 	# Switch to the defending player's turn
 	current_turn = next_player_to_draw
+	
+	# Only show UI to current player in networked games
+	if is_networked_game:
+		# Get local player position
+		var local_position = -1
+		if player_positions.has(my_peer_id):
+			local_position = player_positions[my_peer_id]
+		
+		if current_turn != local_position:
+			show_play_notification("Waiting for Player " + str(current_turn + 1) + " to defend...")
+			return
 	
 	# Create buttons for defense options
 	var screen_size = get_viewport_rect().size
@@ -785,9 +981,37 @@ func defend_against_attack(card = null):
 		# Skip directly to the next player
 		switch_turn()
 
+# Networked version of suit selection
+@rpc("any_peer", "call_local")
+func network_select_suit(peer_id, suit):
+	# Find which player position this peer is using
+	if not player_positions.has(peer_id):
+		print("Error: Unknown peer tried to select suit: ", peer_id)
+		return
+	
+	var player_position = player_positions[peer_id]
+	
+	# Verify it's their turn
+	if player_position != current_turn:
+		print("Error: Player tried to select suit out of turn")
+		return
+	
+	# Call internal suit selection logic
+	select_suit_internal(suit)
+
 # Function to show suit selection UI for Ace
 func show_suit_selection_ui():
 	show_play_notification("Select a suit: Hearts, Diamonds, Clubs, or Spades")
+	
+	# Only show UI to the current player in networked games
+	if is_networked_game:
+		var local_position = -1
+		if player_positions.has(my_peer_id):
+			local_position = player_positions[my_peer_id]
+			
+		if current_turn != local_position:
+			show_play_notification("Waiting for Player " + str(current_turn + 1) + " to select a suit...")
+			return
 	
 	# Create buttons for suit selection
 	var suits = ["Hearts", "Diamonds", "Clubs", "Spades"]
@@ -808,8 +1032,17 @@ func show_suit_selection_ui():
 	
 	add_child(button_container)
 
-# Function to handle suit selection
+# Function to handle suit selection button press
 func select_suit(suit):
+	if is_networked_game:
+		# In networked game, send selection via RPC
+		network_select_suit.rpc(my_peer_id, suit)
+	else:
+		# Local gameplay, use internal function directly
+		select_suit_internal(suit)
+
+# Internal suit selection implementation used by both local and network versions
+func select_suit_internal(suit):
 	chosen_suit = suit
 	show_play_notification("Suit changed to " + suit)
 	
@@ -827,8 +1060,37 @@ func select_suit(suit):
 	skip_turn_switch = false
 	switch_turn()
 
+# Network version of last card declaration
+@rpc("any_peer", "call_local")
+func network_declare_last_card(peer_id):
+	# Find which player position this peer is using
+	if not player_positions.has(peer_id):
+		print("Error: Unknown peer tried to declare last card: ", peer_id)
+		return
+	
+	var player_position = player_positions[peer_id]
+	
+	# Verify it's their turn
+	if player_position != current_turn:
+		print("Error: Player tried to declare last card out of turn")
+		return
+	
+	# Call internal last card declaration
+	last_card_declared = true
+	show_play_notification("Player " + str(player_position + 1) + " declares Last Card!")
+	hide_last_card_button()
+
 # Add this function to show the Last Card button
 func show_last_card_button():
+	# Only show to the current player in networked games
+	if is_networked_game:
+		var local_position = -1
+		if player_positions.has(my_peer_id):
+			local_position = player_positions[my_peer_id]
+			
+		if current_turn != local_position:
+			return
+	
 	# Create button if it doesn't exist
 	if last_card_button == null:
 		last_card_button = Button.new()
@@ -868,9 +1130,41 @@ func hide_last_card_button():
 
 # Add this function to handle the Last Card button press
 func _on_last_card_pressed():
-	last_card_declared = true
-	show_play_notification("Player " + str(current_turn + 1) + " declares Last Card!")
-	hide_last_card_button()
+	if is_networked_game:
+		network_declare_last_card.rpc(my_peer_id)
+	else:
+		last_card_declared = true
+		show_play_notification("Player " + str(current_turn + 1) + " declares Last Card!")
+		hide_last_card_button()
+
+# Network version of turn switching
+@rpc("any_peer", "call_local")
+func network_switch_turn(new_turn, new_direction):
+	# Update game direction
+	game_direction = new_direction
+	
+	# Update current turn
+	current_turn = new_turn
+	
+	print("It's now Player", current_turn + 1, "'s turn!")
+	
+	# Update hand visibility
+	update_hand_visibility()
+
+# Internal function to update hand visibility based on current turn
+func update_hand_visibility():
+	if is_networked_game:
+		# In networked mode, only show cards for local player
+		var local_position = -1
+		if player_positions.has(my_peer_id):
+			local_position = player_positions[my_peer_id]
+		
+		for i in range(hands.size()):
+			hands[i].update_visibility(i == local_position)
+	else:
+		# In local mode, show all hands
+		for i in range(hands.size()):
+			hands[i].update_visibility(true)
 
 func switch_turn():
 	# Skip turn switching if still waiting for player input
@@ -893,18 +1187,39 @@ func switch_turn():
 		cards_to_draw = 0
 	
 	# Update current turn based on game direction
-	current_turn = (current_turn + game_direction) % num_players
-	if current_turn < 0:
-		current_turn = num_players - 1
-		
-	print("It's now Player", current_turn + 1, "'s turn!")
+	var new_turn = (current_turn + game_direction) % num_players
+	if new_turn < 0:
+		new_turn = num_players - 1
 	
-	# Keep all hands visible for testing
-	for i in range(num_players):
-		hands[i].update_visibility(true)
+	if is_networked_game:
+		# In networked mode, whoever initiated the turn change sends the update
+		network_switch_turn.rpc(new_turn, game_direction)
+	else:
+		# In local mode, just update directly
+		current_turn = new_turn
+		print("It's now Player", current_turn + 1, "'s turn!")
+		update_hand_visibility()
 		
 func _on_card_clicked(card):
-	select_card(card)
-
-func _on_card_slot_clicked():
-	play_selected_cards()
+	# In networked games, only process clicks for cards in the local player's hand
+	if is_networked_game:
+		# Find which position is the local player
+		var local_player_position = -1
+		if player_positions.has(my_peer_id):
+			local_player_position = player_positions[my_peer_id]
+		
+		# Check if this card belongs to the local player
+		var is_local_player_card = false
+		if local_player_position >= 0 and local_player_position < hands.size():
+			for c in hands[local_player_position].hand:
+				if c == card:
+					is_local_player_card = true
+					break
+		
+		if is_local_player_card and current_turn == local_player_position:
+			select_card(card)
+		elif is_local_player_card:
+			show_play_notification("It's not your turn!")
+	else:
+		# Local gameplay - handle all clicks
+		select_card(card)

@@ -44,6 +44,7 @@ func can_place_card(card: Node2D) -> bool:
 	# Safety checks for last_played_card
 	if not last_played_card or not ("value" in last_played_card) or not ("suit" in last_played_card):
 		print("DEBUG: Last played card missing properties")
+		# If card data is missing but we have a visual card in slot, return false
 		return false
 	
 	# Check if the last card was an Ace with a chosen suit
@@ -65,7 +66,6 @@ func can_place_card(card: Node2D) -> bool:
 	return suit_matches or value_matches
 
 func place_card(card: Node2D):
-		
 	# First do a safety check without accessing potentially missing properties
 	if card == null:
 		print("DEBUG: Card is null in place_card")
@@ -97,7 +97,15 @@ func place_card(card: Node2D):
 	# Position the card at the center of the CardSlot (0,0 local position)
 	card.position = Vector2.ZERO
 	card.z_index = 10
+	
+	# Important: Cards in the slot should always show their face
 	card.visible = true
+	if card.has_node("CardFaceImage"):
+		card.get_node("CardFaceImage").visible = true
+		card.get_node("CardFaceImage").texture = card.face_texture
+	
+	if card.has_node("CardBackImage"):
+		card.get_node("CardBackImage").visible = false
 	
 	# Safely set card state
 	if card.get("is_card_in_card_slot") != null:

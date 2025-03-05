@@ -1,8 +1,21 @@
 [gd_scene load_steps=9 format=3 uid="uid://xnnyq03fmxlp"]
 
-[ext_resource type="Script" path="res://Scripts/main_menu.gd" id="1_b3yyh"]
 [ext_resource type="Texture2D" uid="uid://dew66su4ank75" path="res://assets/10059426.jpg" id="2_f2jha"]
 [ext_resource type="FontFile" uid="uid://bdv3nir2r7fgo" path="res://assets/fonts/iImong.ttf" id="3_5vk85"]
+
+[sub_resource type="GDScript" id="GDScript_xlch1"]
+script/source = "extends Control
+
+func _on_play_pressed() -> void:
+	get_tree().change_scene_to_file(\"res://scene/play_menu.tscn\")
+	
+func _on_options_pressed() -> void:
+	print(\"Settings pressed\")
+	
+func _on_exit_pressed() -> void:
+	get_tree().quit()
+	
+"
 
 [sub_resource type="StyleBoxTexture" id="StyleBoxTexture_cvvnd"]
 texture = ExtResource("2_f2jha")
@@ -44,7 +57,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_b3yyh")
+script = SubResource("GDScript_xlch1")
 
 [node name="Panel" type="Panel" parent="."]
 layout_mode = 1
