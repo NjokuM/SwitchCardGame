@@ -470,8 +470,13 @@ func network_draw_card(peer_id):
 		print("Error: Player tried to draw a card out of turn")
 		return
 	
-	# Call the original draw logic
-	draw_card_for_player(player_position)
+	# Only the server should do the actual card drawing
+	if multiplayer.is_server() or not is_networked_game:
+		print("Server drawing card for Player " + str(player_position + 1))
+		draw_card_for_player(player_position)
+	else:
+		# Clients just wait for the server to handle it
+		print("Client waiting for server to process draw request")
 
 # Modified draw card function that supports both network and local play
 func draw_card_for_current_player():
