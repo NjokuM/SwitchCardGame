@@ -19,7 +19,6 @@ script = SubResource("GDScript_aulfc")
 [node name="CardSlot" parent="." instance=ExtResource("2_su65h")]
 
 [node name="Deck" type="Node2D" parent="."]
-position = Vector2(750, 800)
 script = ExtResource("4_um34a")
 
 [node name="Sprite2D" type="Sprite2D" parent="Deck"]

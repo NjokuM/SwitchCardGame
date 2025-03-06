@@ -1026,6 +1026,11 @@ func defend_against_attack(card = null):
 				
 			# Remove the card from hand
 			hands[current_turn].remove_card(card)
+			
+			# Add a small delay to ensure hand repositioning completes
+			await get_tree().create_timer(0.5).timeout
+			
+			# Place card in slot
 			card_slot.place_card(card)
 			
 			# Check if next player has a 2 to defend
@@ -1054,6 +1059,11 @@ func defend_against_attack(card = null):
 			
 			# Remove the card from hand
 			hands[current_turn].remove_card(card)
+			
+			# Add a small delay to ensure hand repositioning completes
+			await get_tree().create_timer(0.5).timeout
+			
+			# Place card in slot
 			card_slot.place_card(card)
 			
 			# Move to next player
@@ -1067,6 +1077,11 @@ func defend_against_attack(card = null):
 			
 			# Remove the card from hand
 			hands[current_turn].remove_card(card)
+			
+			# Add a small delay to ensure hand repositioning completes
+			await get_tree().create_timer(0.5).timeout
+			
+			# Place card in slot
 			card_slot.place_card(card)
 			
 			# Player who defended still must draw cards
@@ -1097,7 +1112,6 @@ func defend_against_attack(card = null):
 		
 		# Skip directly to the next player
 		switch_turn()
-
 # Networked version of suit selection
 @rpc("any_peer", "call_local")
 func network_select_suit(peer_id, suit):
