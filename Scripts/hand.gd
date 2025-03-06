@@ -2,8 +2,8 @@ extends Node2D
 
 @export var player_position: int = 0
 @export var is_player: bool = false  # Whether this is the local player's hand
-const CARD_WIDTH = 200
-const CARD_SPACING = 30
+const CARD_WIDTH = 110
+const CARD_SPACING = 35
 const DEFAULT_CARD_MOVE_SPEED = 0.33
 const BACK_OF_CARD_TEXTURE = preload("res://assets/BACK.png")
 
@@ -52,12 +52,21 @@ func move_card(card: Node2D, new_position: Vector2, speed: float):
 
 func remove_card(card: Node2D):
 	if card in hand:
+		# Remove the card from our array and parent
 		hand.erase(card)
-		update_positions(DEFAULT_CARD_MOVE_SPEED)
+		if card.get_parent() == self:
+			remove_child(card)
+			
+		# Allow card to settle in the slot first, then update hand positions
+		get_tree().create_timer(0.1).timeout.connect(func(): update_positions(DEFAULT_CARD_MOVE_SPEED))
+		
+		return true
+	
+	return false
+		
 
 # Improved function to handle card visibility
 func update_visibility(show_card_faces: bool):
-	print("🔍 Updating visibility for Player", player_position + 1, "Show faces:", show_card_faces)
 	
 	for card in hand:
 		# Cards are always visible, but we change their texture
