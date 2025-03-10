@@ -56,3 +56,4 @@ func _on_logout_pressed():
 func _on_logout_succeeded():
 	# Update UI after logout
 	update_login_status()
+	

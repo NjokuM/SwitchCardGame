@@ -59,8 +59,9 @@ func _on_signup_request_completed(result, response_code, headers, body):
 	var json = JSON.parse_string(body.get_string_from_utf8())
 	
 	if response_code != 200:
-		print("Signup Error: ", json.error.message)
-		emit_signal("signup_failed", json.error.code, json.error.message)
+		print("Signup Error: ", json.error.message if "error" in json else "Unknown error")
+		emit_signal("signup_failed", json.error.code if "error" in json else "UNKNOWN", 
+				   json.error.message if "error" in json else "Unknown error")
 		return
 	
 	# Save user info
@@ -75,7 +76,6 @@ func _on_signup_request_completed(result, response_code, headers, body):
 	
 	# Emit signal
 	emit_signal("signup_succeeded", user_info)
-
 # Login with email and password
 func login_with_email(email: String, password: String):
 	var http_request = HTTPRequest.new()
@@ -100,8 +100,9 @@ func _on_login_request_completed(result, response_code, headers, body):
 	var json = JSON.parse_string(body.get_string_from_utf8())
 	
 	if response_code != 200:
-		print("Login Error: ", json.error.message)
-		emit_signal("login_failed", json.error.code, json.error.message)
+		print("Login Error: ", json.error.message if "error" in json else "Unknown error")
+		emit_signal("login_failed", json.error.code if "error" in json else "UNKNOWN", 
+				   json.error.message if "error" in json else "Unknown error")
 		return
 	
 	# Save user info
@@ -116,7 +117,6 @@ func _on_login_request_completed(result, response_code, headers, body):
 	
 	# Emit signal
 	emit_signal("login_succeeded", user_info)
-
 # Refresh the login token
 func refresh_login_token(token: String):
 	var http_request = HTTPRequest.new()
