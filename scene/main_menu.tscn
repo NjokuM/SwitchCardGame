@@ -6,6 +6,54 @@
 [sub_resource type="GDScript" id="GDScript_xlch1"]
 script/source = "extends Control
 
+@onready var play_button = $VBoxContainer/Button
+@onready var options_button = $VBoxContainer/Button2
+@onready var exit_button = $VBoxContainer/Button3
+@onready var login_button = $VBoxContainer/LoginButton
+@onready var logout_button = $VBoxContainer/LogoutButton
+@onready var user_label = $UserLabel
+
+func _ready():
+	# Connect original buttons
+	play_button.pressed.connect(_on_play_pressed)
+	options_button.pressed.connect(_on_options_pressed)
+	exit_button.pressed.connect(_on_exit_pressed)
+	
+	# Connect new auth buttons
+	login_button.pressed.connect(_on_login_pressed)
+	logout_button.pressed.connect(_on_logout_pressed)
+	
+	# Connect signals from AuthManager
+	var auth = get_node(\"/root/AuthManager\")
+	if auth != null:
+		auth.logout_succeeded.connect(_on_logout_succeeded)
+	else:
+		print(\"AuthManager not found!\")
+	
+	# Update UI based on login status
+	update_login_status()
+
+func update_login_status():
+	var auth = get_node(\"/root/AuthManager\")
+	if auth == null:
+		print(\"AuthManager not found!\")
+		return
+		
+	var is_logged_in = auth.is_logged_in()
+	
+	# Show/hide appropriate buttons
+	login_button.visible = !is_logged_in
+	logout_button.visible = is_logged_in
+	
+	# Update user label
+	if is_logged_in:
+		var user_data = auth.get_user_data()
+		var display_name = user_data.display_name if !user_data.display_name.is_empty() else user_data.email
+		user_label.text = \"Logged in as: \" + display_name
+		user_label.visible = true
+	else:
+		user_label.visible = false
+
 func _on_play_pressed() -> void:
 	get_tree().change_scene_to_file(\"res://scene/play_menu.tscn\")
 	
@@ -14,7 +62,18 @@ func _on_options_pressed() -> void:
 	
 func _on_exit_pressed() -> void:
 	get_tree().quit()
-	
+
+func _on_login_pressed():
+	get_tree().change_scene_to_file(\"res://scene/login_screen.tscn\")
+
+func _on_logout_pressed():
+	var auth = get_node(\"/root/AuthManager\")
+	if auth != null:
+		auth.logout()
+
+func _on_logout_succeeded():
+	# Update UI after logout
+	update_login_status()
 "
 
 [sub_resource type="StyleBoxTexture" id="StyleBoxTexture_cvvnd"]
@@ -125,6 +184,35 @@ theme_override_styles/pressed = SubResource("StyleBoxFlat_m4dpl")
 theme_override_styles/normal = SubResource("StyleBoxFlat_w4l5y")
 text = "Exit"
 
+[node name="LoginButton" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_hover_color = Color(0, 0, 0, 1)
+theme_override_colors/font_pressed_color = Color(0, 0, 0, 1)
+theme_override_colors/font_focus_color = Color(0, 0, 0, 1)
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 60
+theme_override_styles/focus = SubResource("StyleBoxEmpty_10hki")
+theme_override_styles/hover = SubResource("StyleBoxFlat_1y1xf")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_m4dpl")
+theme_override_styles/normal = SubResource("StyleBoxFlat_w4l5y")
+text = "Login / Sign Up"
+
+[node name="LogoutButton" type="Button" parent="VBoxContainer"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_hover_color = Color(0, 0, 0, 1)
+theme_override_colors/font_pressed_color = Color(0, 0, 0, 1)
+theme_override_colors/font_focus_color = Color(0, 0, 0, 1)
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 60
+theme_override_styles/focus = SubResource("StyleBoxEmpty_10hki")
+theme_override_styles/hover = SubResource("StyleBoxFlat_1y1xf")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_m4dpl")
+theme_override_styles/normal = SubResource("StyleBoxFlat_w4l5y")
+text = "Logout"
+
 [node name="Label" type="Label" parent="."]
 layout_mode = 1
 anchors_preset = -1
@@ -147,6 +235,17 @@ text = "SW!TCH"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[connection signal="pressed" from="VBoxContainer/Button" to="." method="_on_play_pressed"]
-[connection signal="pressed" from="VBoxContainer/Button2" to="." method="_on_options_pressed"]
-[connection signal="pressed" from="VBoxContainer/Button3" to="." method="_on_exit_pressed"]
+[node name="UserLabel" type="Label" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -300.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = 60.0
+grow_horizontal = 0
+theme_override_font_sizes/font_size = 20
+text = "Logged in as: Username"
+horizontal_alignment = 2

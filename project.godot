@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 GameSettings="*res://Scripts/game_settings.gd"
 NetworkManager="*res://Scripts/NetworkManager.gd"
+AuthManager="*res://Scripts/AuthManager.gd"
 
 [display]
 
