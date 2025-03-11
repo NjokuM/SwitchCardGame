@@ -393,20 +393,30 @@ func _generate_session_id() -> String:
 	return session_id
 
 # HTTP Callbacks
+# In SessionManager.gd
 func _on_session_creation_completed(result, response_code, headers, body):
+	# Add debug output to see what's actually being returned
+	print("Session creation response code: ", response_code)
+	print("Response body: ", body.get_string_from_utf8())
+	
 	if response_code != 200:
 		print("Session creation error: ", body.get_string_from_utf8())
 		emit_signal("session_creation_failed", "Server error: " + body.get_string_from_utf8())
 		return
 	
-	current_session_id = session_data.session_id
-	is_host = true
-	
-	# Start polling for updates
-	_start_session_updates(current_session_id)
-	
-	emit_signal("session_created", current_session_id)
-	print("Session created: ", current_session_id)
+	# Ensure session_data is properly set before accessing
+	if session_data.has("session_id"):
+		current_session_id = session_data.session_id
+		is_host = true
+		
+		# Start polling for updates
+		_start_session_updates(current_session_id)
+		
+		emit_signal("session_created", current_session_id)
+		print("Session created: ", current_session_id)
+	else:
+		print("Error: session_data does not contain session_id")
+		emit_signal("session_creation_failed", "Invalid session data")
 
 func _on_session_data_received(result, response_code, headers, body, session_id, is_join_attempt):
 	if response_code != 200:
