@@ -70,13 +70,14 @@ func set_lobby_ui_state():
 	create_button.visible = false
 	join_button.visible = false
 	session_id_input.visible = false
-	player_list.visible = true
+	player_list.visible = true  # Always show player list in lobby
 	ready_button.visible = true
 	start_button.visible = is_host
 	session_id_display.visible = true
 	
 	status_label.text = "Waiting for players to get ready..."
-	session_id_display.text = "Session ID: " + session_id
+	if session_id:
+		session_id_display.text = "Session ID: " + session_id
 
 func _on_create_button_pressed():
 	# Disable buttons to prevent multiple clicks
@@ -120,6 +121,7 @@ func _on_join_button_pressed():
 		status_label.text = "Error: SessionManager not found!"
 		create_button.disabled = false
 		join_button.disabled = false
+
 
 func _on_ready_button_pressed():
 	var is_ready = ready_button.text == "Ready"
@@ -178,11 +180,16 @@ func _on_session_joined(new_session_id, player_data):
 	session_id = new_session_id
 	is_host = false
 	
-	# Update UI for lobby
+	# Update UI for lobby immediately
 	set_lobby_ui_state()
 	
+	# Force an update of the player list
+	var session_mgr = get_node("/root/SessionManager")
+	if session_mgr and !session_mgr.session_data.is_empty():
+		update_player_list()
+	
 	status_label.text = "Joined session! Waiting for players..."
-
+	
 func _on_session_join_failed(error):
 	# Re-enable buttons
 	create_button.disabled = false
@@ -198,19 +205,34 @@ func _on_player_left(player_id):
 	update_player_list()
 	status_label.text = "A player left the session."
 
+# Add this function in game_lobby.gd
 func _on_session_data_updated(session_data):
+	# Debug output to verify data received
+	print("Session data updated: ", JSON.stringify(session_data))
+	
+	# Update session ID display
+	if "session_id" in session_data:
+		session_id = session_data.session_id
+		session_id_display.text = "Session ID: " + session_id
+		session_id_display.visible = true
+	
 	# Update host status
-	var session_mgr = get_node("/root/SessionManager")
+	var session_mgr = get_node_or_null("/root/SessionManager")
 	if session_mgr:
+		is_host = false
 		var sanitized_local_id = session_mgr._sanitize_firebase_key(session_mgr.local_player_id)
 		
 		if "players" in session_data and sanitized_local_id in session_data.players:
 			is_host = session_data.players[sanitized_local_id].is_host
+			
+			# If we're in the lobby, make sure the UI is updated
+			if !player_list.visible:
+				set_lobby_ui_state()
 		
 		# Update UI based on host status
 		start_button.visible = is_host
 		
-		# Update player list
+		# Update player list with latest data
 		update_player_list()
 		
 		# Check if the game has started
@@ -218,11 +240,7 @@ func _on_session_data_updated(session_data):
 			status_label.text = "Game is starting..."
 			# Transition to game scene
 			get_tree().change_scene_to_file("res://scene/main.tscn")
-		elif "status" in session_data and session_data.status == "ended":
-			status_label.text = "Game has ended."
-	else:
-		status_label.text = "Error: SessionManager not found!"
-		
+
 func _on_refresh_button_pressed():
 	status_label.text = "Refreshing session data..."
 	

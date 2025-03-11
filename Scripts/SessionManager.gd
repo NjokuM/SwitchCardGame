@@ -23,7 +23,7 @@ var game_in_progress = false
 
 # Timer for polling session updates
 var update_timer = null
-var polling_interval = 1.0  # seconds
+var polling_interval = 2.0  # seconds
 
 func _ready():
 	# Initialize update timer
@@ -109,8 +109,12 @@ func join_session(session_id: String):
 
 # Add player to session after confirming it exists
 func _add_player_to_session(session_id: String, session_data: Dictionary):
+	
+	current_session_id = session_id
+	
 	var auth = get_node("/root/AuthManager")
 	
+	local_player_id = auth.user_info.user_id
 	# Check if session is joinable
 	if session_data.status != "waiting":
 		emit_signal("session_join_failed", "Game already in progress or ended")
@@ -499,7 +503,6 @@ func _on_game_ended(result, response_code, headers, body):
 # Process session updates received from polling
 # In the _process_session_update function, modify or add:
 func _process_session_update(updated_session):
-	print("Processing session update: ", JSON.stringify(updated_session))
 	
 	# Store previous player count to detect joins/leaves
 	var previous_players = {}
@@ -513,14 +516,10 @@ func _process_session_update(updated_session):
 	if !("players" in session_data):
 		session_data.players = {}
 	
-	# Debug print of players
-	print("Players in session: ", session_data.players.keys())
-	
 	# Check if we're the host
 	var sanitized_local_id = _sanitize_firebase_key(local_player_id)
 	if sanitized_local_id in session_data.players:
 		is_host = session_data.players[sanitized_local_id].is_host
-		print("Host status: ", is_host)
 	
 	# Check for player joins/leaves
 	for player_id in session_data.players:

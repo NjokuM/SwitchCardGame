@@ -22,6 +22,9 @@ var my_info = {
 	position = 0  # Player position at the game table
 }
 
+# Game state tracking
+var current_game_state = {}
+
 func _ready():
 	multiplayer.peer_connected.connect(_player_connected)
 	multiplayer.peer_disconnected.connect(_player_disconnected)
@@ -85,6 +88,12 @@ func _player_connected(id):
 	
 	# Send my info to the new player
 	register_player(id, multiplayer.get_unique_id(), my_info)
+	
+	# If we're the server and game has started, send current state to new player
+	if multiplayer.is_server() and !current_game_state.is_empty():
+		# Allow a small delay for the player to fully connect
+		await get_tree().create_timer(0.5).timeout
+		sync_game_state_to_player.rpc_id(id, current_game_state)
 
 # Callback from SceneTree, called when a client disconnects
 func _player_disconnected(id):
@@ -149,6 +158,9 @@ func register_player(receiver_id, sender_id, info):
 			if peer_id != sender_id and peer_id != 1:  # Don't send to self or to server
 				print("Server telling player " + str(peer_id) + " about new player " + str(sender_id))
 				_register_player.rpc_id(peer_id, sender_id, player_info[sender_id])
+		
+		# After player registration, synchronize player positions
+		sync_player_positions.rpc(player_info)
 	
 	print("Player registered: " + str(sender_id) + " with position " + str(player_info[sender_id].position))
 	emit_signal("player_connected", sender_id, player_info[sender_id])
@@ -251,3 +263,27 @@ func _do_scene_change():
 		print("Error changing scene: " + str(error))
 	else:
 		print("Scene change successful!")
+
+# ------ STATE SYNCHRONIZATION FUNCTIONS ------
+
+# Sync player positions to ensure consistency
+@rpc("authority", "call_local", "reliable")
+func sync_player_positions(players_data):
+	# Update local player positions
+	for peer_id in players_data:
+		if player_info.has(peer_id) and players_data[peer_id].has("position"):
+			player_info[peer_id].position = players_data[peer_id].position
+			
+	print("Player positions synchronized")
+
+# Sync game state to all players
+@rpc("authority", "call_local", "reliable")
+func sync_game_state(game_data):
+	current_game_state = game_data.duplicate()
+	print("Game state synchronized")
+
+# Sync game state to a specific player (for late joiners)
+@rpc("authority", "reliable")
+func sync_game_state_to_player(game_data):
+	current_game_state = game_data.duplicate()
+	print("Game state received from server")
