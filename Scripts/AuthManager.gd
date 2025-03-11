@@ -1,4 +1,3 @@
-
 extends Node
 
 # Firebase configuration
@@ -35,8 +34,79 @@ func _ready():
 		# Auto login with stored refresh token
 		refresh_login_token(saved_token)
 
+# Helper function to make Firebase Realtime Database requests
+func _make_database_request(method: String, path: String, data = null, callback = ""):
+	var http_request = HTTPRequest.new()
+	add_child(http_request)
+	
+	if callback:
+		http_request.request_completed.connect(Callable(self, callback))
+	
+	# Format the URL for Firebase Realtime Database
+	var url = PROJECT_ID + path + ".json?auth=" + id_token
+	
+	var headers = ["Content-Type: application/json"]
+	var body = JSON.stringify(data) if data else ""
+	
+	var error
+	match method:
+		"GET":
+			error = http_request.request(url, headers, HTTPClient.METHOD_GET)
+		"PUT":
+			error = http_request.request(url, headers, HTTPClient.METHOD_PUT, body)
+		"POST":
+			error = http_request.request(url, headers, HTTPClient.METHOD_POST, body)
+		"PATCH":
+			error = http_request.request(url, headers, HTTPClient.METHOD_PATCH, body)
+		"DELETE":
+			error = http_request.request(url, headers, HTTPClient.METHOD_DELETE)
+	
+	if error != OK:
+		push_error("An error occurred in the database request: " + str(error))
+	
+	return http_request
+
+# Add this function to save user data to the database after signup
+func _save_user_to_database():
+	if !user_info.is_logged_in or user_info.user_id.is_empty():
+		push_error("Cannot save user data: Not logged in or missing user ID")
+		return
+	
+	var user_data = {
+		"email": user_info.email,
+		"display_name": user_info.display_name,
+		"created_at": Time.get_unix_time_from_system(),
+		"last_login": Time.get_unix_time_from_system()
+	}
+	
+	# Add user to the database at /users/{user_id}
+	_make_database_request("PUT", "/users/" + user_info.user_id, user_data, "_on_user_data_saved")
+
+# Callback for database save
+func _on_user_data_saved(result, response_code, headers, body):
+	if response_code == 200:
+		print("User data saved to database successfully")
+	else:
+		var response = JSON.parse_string(body.get_string_from_utf8())
+		push_error("Failed to save user data: " + str(response))
+
+# Function to update last login time
+func _update_user_last_login():
+	if !user_info.is_logged_in or user_info.user_id.is_empty():
+		return
+		
+	var update_data = {
+		"last_login": Time.get_unix_time_from_system()
+	}
+	
+	# Update just the last_login field
+	_make_database_request("PATCH", "/users/" + user_info.user_id, update_data)
+
 # Sign up with email and password
 func signup_with_email(email: String, password: String, username: String = ""):
+	# Set the display name right away
+	user_info.display_name = username
+	
 	var http_request = HTTPRequest.new()
 	add_child(http_request)
 	http_request.request_completed.connect(_on_signup_request_completed)
@@ -53,7 +123,6 @@ func signup_with_email(email: String, password: String, username: String = ""):
 	if error != OK:
 		push_error("An error occurred in the HTTP request for signup")
 		emit_signal("signup_failed", "HTTP_ERROR", "Failed to send request")
-
 # On signup request completed
 func _on_signup_request_completed(result, response_code, headers, body):
 	var json = JSON.parse_string(body.get_string_from_utf8())
@@ -74,8 +143,12 @@ func _on_signup_request_completed(result, response_code, headers, body):
 	# Save user data locally
 	save_user_data()
 	
+	# Save user data to Firebase database
+	_save_user_to_database()
+	
 	# Emit signal
 	emit_signal("signup_succeeded", user_info)
+
 # Login with email and password
 func login_with_email(email: String, password: String):
 	var http_request = HTTPRequest.new()
@@ -115,8 +188,12 @@ func _on_login_request_completed(result, response_code, headers, body):
 	# Save user data locally
 	save_user_data()
 	
+	# Update last login time in Firebase database
+	_update_user_last_login()
+	
 	# Emit signal
 	emit_signal("login_succeeded", user_info)
+
 # Refresh the login token
 func refresh_login_token(token: String):
 	var http_request = HTTPRequest.new()
@@ -149,6 +226,9 @@ func _on_refresh_token_completed(result, response_code, headers, body):
 	
 	# Save updated tokens
 	save_user_data()
+	
+	# Update last login in database
+	_update_user_last_login()
 	
 	print("Token refreshed successfully")
 
