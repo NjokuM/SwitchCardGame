@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://n5x7xyf3uv6u"]
+[gd_scene load_steps=10 format=3 uid="uid://n5x7xyf3uv6u"]
 
 [ext_resource type="Script" path="res://Scripts/game_lobby.gd" id="1_l3vr6"]
 [ext_resource type="Texture2D" uid="uid://dew66su4ank75" path="res://assets/10059426.jpg" id="2_76jtu"]
@@ -7,6 +7,8 @@
 [sub_resource type="StyleBoxTexture" id="StyleBoxTexture_m61q2"]
 texture = ExtResource("2_76jtu")
 modulate_color = Color(0.36, 0.36, 0.36, 1)
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_ul7so"]
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_5gvls"]
 
@@ -83,11 +85,18 @@ horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="SessionIdDisplay" type="Label" parent="LobbyPanel"]
-visible = false
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "Session ID: ABCDEF"
 horizontal_alignment = 1
+
+[node name="CopyButton" type="Button" parent="LobbyPanel/SessionIdDisplay"]
+layout_mode = 2
+offset_left = 492.0
+offset_right = 630.0
+offset_bottom = 37.0
+theme_override_styles/normal = SubResource("StyleBoxEmpty_ul7so")
+text = "Copy to Clipboard"
 
 [node name="SessionIdInput" type="LineEdit" parent="LobbyPanel"]
 custom_minimum_size = Vector2(0, 50)

@@ -10,6 +10,7 @@ extends Control
 @onready var status_label = $LobbyPanel/StatusLabel
 @onready var session_id_display = $LobbyPanel/SessionIdDisplay
 @onready var refresh_button = $LobbyPanel/RefreshButton
+@onready var copy_button = $LobbyPanel/SessionIdDisplay/CopyButton
 
 var session_id = ""
 var is_host = false
@@ -25,6 +26,7 @@ func _ready():
 	start_button.pressed.connect(_on_start_button_pressed)
 	back_button.pressed.connect(_on_back_button_pressed)
 	refresh_button.pressed.connect(_on_refresh_button_pressed)
+	copy_button.pressed.connect(_on_copy_button_pressed)
 	
 	# Use deferred call to connect signals after everything is initialized
 	call_deferred("_connect_session_signals")
@@ -76,6 +78,20 @@ func set_lobby_ui_state():
 	if session_id:
 		session_id_display.text = "Session ID: " + session_id
 
+func _on_copy_button_pressed():
+	# Copy the session ID to clipboard
+	if !session_id.is_empty():
+		DisplayServer.clipboard_set(session_id)
+		status_label.text = "Session ID copied to clipboard!"
+		
+		# Create a small animation to provide visual feedback
+		var original_text = copy_button.text
+		copy_button.text = "Copied!"
+		
+		# Reset button text after a short delay
+		var timer = get_tree().create_timer(1.5)
+		timer.timeout.connect(func(): copy_button.text = original_text)
+		
 func _on_create_button_pressed():
 	# Disable buttons to prevent multiple clicks
 	create_button.disabled = true
