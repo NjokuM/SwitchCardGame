@@ -111,3 +111,35 @@ func reset_state():
 	is_card_in_card_slot = false
 	is_selected = false
 	position = starting_position
+	
+# Add or update these functions in Card.gd
+
+# Function to show the card face
+func show_face():
+	if has_node("CardFaceImage"):
+		$CardFaceImage.visible = true
+		$CardFaceImage.texture = face_texture
+	
+	if has_node("CardBackImage"):
+		$CardBackImage.visible = false
+		
+	print("Showing face for: ", value, " of ", suit)
+
+# Function to show the card back
+func show_back():
+	if has_node("CardFaceImage"):
+		$CardFaceImage.visible = true
+		$CardFaceImage.texture = preload("res://assets/BACK.png")
+	
+	if has_node("CardBackImage"):
+		$CardBackImage.visible = false
+		
+	print("Showing back for card")
+
+# Call this function when the card is added to a hand
+# to set its initial visibility
+func set_in_hand(is_player_hand: bool):
+	if is_player_hand:
+		show_face()
+	else:
+		show_back()

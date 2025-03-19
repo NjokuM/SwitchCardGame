@@ -20,10 +20,11 @@ var is_host = false
 var session_data = {}
 var local_player_id = ""
 var game_in_progress = false
+var player_positions = {} # Maps player IDs to positions in the game
 
 # Timer for polling session updates
 var update_timer = null
-var polling_interval = 2.0  # seconds
+var polling_interval = 1  # seconds
 
 func _ready():
 	# Initialize update timer
@@ -81,7 +82,6 @@ func create_session(game_settings: Dictionary):
 	var body = JSON.stringify(session_data)
 	var headers = ["Content-Type: application/json"]
 	
-	print("Sending session data: ", body)  # Debug print
 	
 	var error = http_request.request(url, headers, HTTPClient.METHOD_PUT, body)
 	if error != OK:
@@ -202,9 +202,6 @@ func set_player_ready(ready: bool):
 	var url = DATABASE_URL + "sessions/" + current_session_id + "/players/" + sanitized_user_id + "/is_ready.json?" + AUTH_HEADER + auth.id_token
 	var body = JSON.stringify(ready)
 	var headers = ["Content-Type: application/json"]
-	
-	print("Sending ready status update request to: ", url)
-	print("Body: ", body)
 	
 	var error = http_request.request(url, headers, HTTPClient.METHOD_PUT, body)
 	if error != OK:
@@ -399,9 +396,6 @@ func _generate_session_id() -> String:
 # HTTP Callbacks
 # In SessionManager.gd
 func _on_session_creation_completed(result, response_code, headers, body):
-	# Add debug output to see what's actually being returned
-	print("Session creation response code: ", response_code)
-	print("Response body: ", body.get_string_from_utf8())
 	
 	if response_code != 200:
 		print("Session creation error: ", body.get_string_from_utf8())
@@ -417,7 +411,6 @@ func _on_session_creation_completed(result, response_code, headers, body):
 		_start_session_updates(current_session_id)
 		
 		emit_signal("session_created", current_session_id)
-		print("Session created: ", current_session_id)
 	else:
 		print("Error: session_data does not contain session_id")
 		emit_signal("session_creation_failed", "Invalid session data")
@@ -534,3 +527,75 @@ func _process_session_update(updated_session):
 	
 	# Emit the updated data for other components to use
 	emit_signal("session_data_updated", session_data)
+	
+	# Update player positions based on join order
+	_update_player_positions()
+	
+# Get local player's position in the game (0, 1, 2, 3...)
+func get_local_player_position() -> int:
+	# Get position from the player_positions dictionary
+	if player_positions.has(local_player_id):
+		return player_positions[local_player_id]
+	
+	# If position isn't cached, calculate it based on join order
+	return _calculate_player_position(local_player_id)
+	
+# Calculate a player's position based on join order
+func _calculate_player_position(player_id) -> int:
+	# If session data or players are missing, return -1
+	if session_data.is_empty() or !("players" in session_data) or session_data.players.is_empty():
+		return -1
+	
+	# Get sanitized player ID for lookup
+	var sanitized_id = _sanitize_firebase_key(player_id)
+	
+	# Sort players by their join timestamp
+	var players_array = []
+	for id in session_data.players:
+		var player = session_data.players[id]
+		if "joined_at" in player:
+			players_array.append({"id": id, "joined_at": player.joined_at})
+	
+	# Sort by join time
+	players_array.sort_custom(func(a, b): return a.joined_at < b.joined_at)
+	
+	# Find the player's position in the sorted array
+	for i in range(players_array.size()):
+		if players_array[i].id == sanitized_id:
+			return i
+			
+	return -1
+	
+# Update the player_positions dictionary based on current session data
+func _update_player_positions():
+	# Reset positions
+	player_positions = {}
+	
+	# If session data is empty, do nothing
+	if session_data.is_empty() or !("players" in session_data) or session_data.players.is_empty():
+		return
+	
+	# Sort players by join timestamp
+	var players_array = []
+	for id in session_data.players:
+		var player = session_data.players[id]
+		if "joined_at" in player:
+			players_array.append({"id": id, "joined_at": player.joined_at})
+	
+	# Sort by join time
+	players_array.sort_custom(func(a, b): return a.joined_at < b.joined_at)
+	
+	# Assign positions
+	for i in range(players_array.size()):
+		var player_id = players_array[i].id.replace("_", ".")  # Convert back from sanitized ID
+		player_positions[player_id] = i
+		
+	
+# Check if local player is the host
+func is_local_player_host() -> bool:
+	var sanitized_local_id = _sanitize_firebase_key(local_player_id)
+	
+	if "players" in session_data and sanitized_local_id in session_data.players:
+		return session_data.players[sanitized_local_id].is_host
+	
+	return false

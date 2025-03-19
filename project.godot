@@ -21,6 +21,7 @@ GameSettings="*res://Scripts/game_settings.gd"
 NetworkManager="*res://Scripts/NetworkManager.gd"
 AuthManager="*res://Scripts/AuthManager.gd"
 SessionManager="*res://Scripts/SessionManager.gd"
+FirebaseDB="*res://Scripts/FirebaseDB.gd"
 
 [display]
 

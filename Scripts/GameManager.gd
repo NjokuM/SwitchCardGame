@@ -25,6 +25,8 @@ var jack_count = 0  # Track how many Jacks were played
 var is_networked_game = false
 var player_positions = {} # Maps peer_ids to player positions
 var my_peer_id = 0
+var session_sync = null
+var waiting_for_sync = false
 
 func _ready():
 	# Add draw_card action if it doesn't exist
@@ -40,29 +42,106 @@ func _ready():
 	
 	await get_tree().process_frame  
 	
-	# Check if we're coming from the network setup
-	var network = get_node_or_null("/root/NetworkManager")
-	if network and network.player_info.size() > 0:
-		# Only setup network if we're coming from multiplayer menu
-		_ready_network_setup()
-		# Use number of players from network
-		num_players = player_positions.size()
+	# Initialize SessionSync
+	session_sync = preload("res://Scripts/SessionSync.gd").new()
+	add_child(session_sync)
+	session_sync.game_state_synchronized.connect(_on_game_state_synchronized)
+	
+	# Check if we're in a networked session
+	var session_mgr = get_node_or_null("/root/SessionManager")
+	if session_mgr and !session_mgr.current_session_id.is_empty():
+		is_networked_game = true
+		waiting_for_sync = true
 		
-		# Ensure we have at least 2 players in network mode
+		# Connect status message
+		show_play_notification("Waiting for game to synchronize...")
+		
+		# Initialize game state with proper player count
+		num_players = session_mgr.session_data.players.size()
 		if num_players < 2:
 			num_players = 2  # Fallback to minimum
 			
-		print("Networked game with " + str(num_players) + " players")
+		# Create the player hands first
+		create_player_hands()
+		
+		# Initialize SessionSync
+		session_sync.initialize_game_state(num_players)
+		
+		if session_mgr.is_local_player_host():
+			# Host deals the cards
+			await get_tree().process_frame # Give a frame to ensure hands are created
+			session_sync.deal_initial_cards(7) # Deal 7 cards per player
 	else:
-		# We're in local mode - don't even attempt network setup
+		# Regular local game
 		is_networked_game = false
 		num_players = GameSettings.num_players
 		print("Local game with " + str(num_players) + " players from GameSettings")
-	
-	print("Game started with", num_players, "players!")
-	setup_play_label()
-	start_game()
+		
+		# Initialize game normally
+		print("Game started with", num_players, "players!")
+		setup_play_label()
+		start_game()
+		
+		
 
+func _on_game_state_synchronized():
+	if waiting_for_sync:
+		waiting_for_sync = false
+		
+		# Update UI to reflect synchronized state
+		show_play_notification("Game synchronized!")
+		
+		# Get local player position
+		var local_position = session_sync.get_local_player_position()
+		
+		# Check if any new cards have been added since last sync
+		for player_index in range(hands.size()):
+			var hand_data = session_sync.get_player_hand(player_index)
+			
+			# If there are more cards in the synchronized data than in the visual hand,
+			# add the new cards with animation
+			if hand_data.size() > hands[player_index].hand.size():
+				# Find which cards are new
+				var existing_cards = []
+				for card in hands[player_index].hand:
+					existing_cards.append({"value": card.value, "suit": card.suit})
+				
+				# Add new cards with animation
+				for card_data in hand_data:
+					# Check if this card is already in the hand
+					var card_exists = false
+					for existing in existing_cards:
+						if existing.value == card_data.value and existing.suit == card_data.suit:
+							card_exists = true
+							break
+					
+					# If card doesn't exist yet, add it with animation
+					if !card_exists:
+						var new_card = deck.create_card_from_data(card_data.value, card_data.suit)
+						hands[player_index].add_card(new_card, 0.3)  # Use animation speed
+						
+						# Small delay between adding cards to create a dealing animation effect
+						await get_tree().create_timer(0.1).timeout
+		
+		# Update current card in slot
+		if session_sync.current_card:
+			var current_card = deck.create_card_from_data(
+				session_sync.current_card.value, 
+				session_sync.current_card.suit
+			)
+			card_slot.place_card(current_card)
+		
+		# Update current turn and game direction
+		current_turn = session_sync.current_turn
+		game_direction = session_sync.game_direction
+		
+		# Update hand visibility - show faces only for local player's hand
+		for i in range(hands.size()):
+			# If this is the local player's hand, show card faces
+			# Otherwise, show card backs
+			hands[i].update_visibility(i == local_position)
+		
+		print("Updated card visibility - local player at position: ", local_position)		
 # Network setup
 func _ready_network_setup():
 	# Check if we're in a networked game
@@ -437,24 +516,33 @@ func create_player_hands():
 
 # Improved hand visibility function
 func update_hand_visibility():
+	print("Updating hand visibility for all players")
+	
 	if is_networked_game:
 		# In networked mode, all hands are visible but only show faces for local player
 		var local_position = -1
-		if player_positions.has(my_peer_id):
-			local_position = player_positions[my_peer_id]
 		
+		# Get local player position from SessionSync if available
+		if session_sync:
+			local_position = session_sync.get_local_player_position()
+			print("SessionSync reports local player position: ", local_position)
+		elif player_positions.has(my_peer_id):
+			local_position = player_positions[my_peer_id]
+			print("Using player_positions for local player position: ", local_position)
+		
+		print("Local player position determined as: ", local_position)
+		
+		# Update each hand's visibility
 		for i in range(hands.size()):
-			if i == local_position:
-				# For local player's hand, show card faces
-				hands[i].update_visibility(true)
-			else:
-				# For opponent hands, show card backs
-				hands[i].update_visibility(false)
+			var is_local = (i == local_position)
+			print("Setting hand ", i, " visibility: ", is_local)
+			hands[i].update_visibility(is_local)
 	else:
-		# In local mode, show all hands' faces
+		# In local mode, show all hands' faces for testing
 		for hand in hands:
 			hand.update_visibility(true)
-
+			
+	print("Hand visibility update complete")
 # Network version for drawing cards
 @rpc("any_peer", "call_local")
 func network_draw_card(peer_id):
@@ -483,11 +571,17 @@ func draw_card_for_current_player():
 	print("DEBUG: Attempting to draw for Player " + str(current_turn + 1))
 	
 	if is_networked_game:
-		network_draw_card.rpc(my_peer_id)
+		# Get local player position
+		var local_position = session_sync.get_local_player_position()
+		
+		# Only allow drawing if it's this player's turn
+		if local_position == current_turn:
+			session_sync.submit_card_draw(local_position)
+		else:
+			show_play_notification("Not your turn to draw!")
 	else:
 		# Local gameplay
 		draw_card_for_player(current_turn)
-
 # Internal draw card function used by both local and networked versions
 func draw_card_for_player(player_position):
 	print("DEBUG: Drawing card for Player " + str(player_position + 1))
@@ -649,6 +743,7 @@ func network_play_cards(peer_id, card_data_array):
 	play_selected_cards_internal()
 
 # Modified play_selected_cards to support both network and local play
+# Modify your play_selected_cards function to use SessionSync
 func play_selected_cards():
 	if selected_cards.is_empty():
 		return
@@ -658,20 +753,26 @@ func play_selected_cards():
 		return
 	
 	if is_networked_game:
-		# Convert selected cards to data dictionary for network transmission
-		var card_data = []
+		# Convert selected cards to data array
+		var card_data_array = []
 		for card in selected_cards:
-			card_data.append({
+			card_data_array.append({
 				"value": card.value,
 				"suit": card.suit
 			})
 		
-		# Send to all clients
-		network_play_cards.rpc(my_peer_id, card_data)
+		# Get local player position
+		var local_position = session_sync.get_local_player_position()
+		
+		# Submit play through SessionSync
+		session_sync.submit_card_play(local_position, card_data_array)
+		
+		# Also play the cards locally for immediate feedback
+		play_selected_cards_internal()
 	else:
 		# Local game, just play the cards
 		play_selected_cards_internal()
-
+		
 # Internal play_selected_cards implementation used by both local and network versions
 func play_selected_cards_internal():
 	if selected_cards.is_empty():

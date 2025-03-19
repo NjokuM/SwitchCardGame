@@ -17,7 +17,6 @@ var ready_players = 0
 var total_players = 0
 
 func _ready():
-	print("Game Lobby initialized")
 	
 	# Connect UI elements
 	create_button.pressed.connect(_on_create_button_pressed)
@@ -38,7 +37,6 @@ func _connect_session_signals():
 	var session_mgr = get_node_or_null("/root/SessionManager")
 	
 	if session_mgr == null:
-		print("ERROR: SessionManager not found! Make sure it's registered as an Autoload.")
 		status_label.text = "Error connecting to session manager"
 		return
 	
@@ -51,7 +49,6 @@ func _connect_session_signals():
 	session_mgr.player_left.connect(_on_player_left)
 	session_mgr.session_data_updated.connect(_on_session_data_updated)
 	
-	print("Successfully connected to SessionManager signals")
 
 func set_initial_ui_state():
 	# Show/hide appropriate elements
@@ -207,8 +204,6 @@ func _on_player_left(player_id):
 
 # Add this function in game_lobby.gd
 func _on_session_data_updated(session_data):
-	# Debug output to verify data received
-	print("Session data updated: ", JSON.stringify(session_data))
 	
 	# Update session ID display
 	if "session_id" in session_data:
@@ -267,8 +262,6 @@ func update_player_list():
 	if session_data.is_empty() or !("players" in session_data):
 		status_label.text = "Waiting for players..."
 		return
-	
-	print("Updating player list with: ", session_data.players)
 	
 	# Add each player to the list
 	for player_id in session_data.players:
