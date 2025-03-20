@@ -297,6 +297,9 @@ func _sync_hand_with_data(hand_index, hand_data, is_local_player):
 			var new_card = CARD_SCENE.instantiate()
 			if new_card.has_method("set_card_data"):
 				new_card.set_card_data(card_data.value, card_data.suit)
+				# Force set is_player flag in the hand BEFORE adding the card
+				hand.is_player = is_local_player
+				print("Firebase: Setting hand.is_player = " + str(is_local_player) + " before adding card")
 				hand.add_card(new_card, CARD_DRAW_SPEED)
 				print("Firebase: Added new card to player", hand_index, ":", card_data.value, "of", card_data.suit)
 			else:

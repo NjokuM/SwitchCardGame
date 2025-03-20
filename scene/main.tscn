@@ -1,10 +1,11 @@
-[gd_scene load_steps=8 format=3 uid="uid://binitu8i86r26"]
+[gd_scene load_steps=9 format=3 uid="uid://binitu8i86r26"]
 
 [ext_resource type="PackedScene" uid="uid://mcgxabep2bnv" path="res://scene/CardSlot.tscn" id="2_su65h"]
 [ext_resource type="Script" path="res://Scripts/Deck.gd" id="4_um34a"]
 [ext_resource type="Texture2D" uid="uid://jwtumo7au0fm" path="res://assets/BACK.png" id="5_wbstm"]
 [ext_resource type="Script" path="res://Scripts/InputManager.gd" id="6_5mxht"]
 [ext_resource type="Script" path="res://Scripts/GameManager.gd" id="8_jr8ne"]
+[ext_resource type="PackedScene" uid="uid://c3lhn4lb5t7va" path="res://scene/game_state_ui.tscn" id="9_w3edr"]
 
 [sub_resource type="GDScript" id="GDScript_aulfc"]
 
@@ -38,3 +39,5 @@ script = ExtResource("6_5mxht")
 
 [node name="GameManager" type="Node2D" parent="."]
 script = ExtResource("8_jr8ne")
+
+[node name="GameStateUI" parent="." instance=ExtResource("9_w3edr")]

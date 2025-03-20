@@ -64,12 +64,14 @@ func setup_collision():
 	if not area.is_connected("mouse_exited", _on_area_2d_mouse_exited):
 		area.mouse_exited.connect(_on_area_2d_mouse_exited)
 
+var hover_direction = 1  # 1 for upward (bottom player), -1 for downward
+
 func _on_area_2d_mouse_entered():
 	# Only apply hover effect if the card is in a player's hand
 	if not is_selected and not is_card_in_card_slot:
 		var tween = create_tween()
 		tween.tween_property(self, "position:y", 
-			starting_position.y + HOVER_OFFSET, ANIMATION_DURATION)
+			starting_position.y + (HOVER_OFFSET * hover_direction), ANIMATION_DURATION)
 	emit_signal("hovered", self)
 
 func _on_area_2d_mouse_exited():
@@ -85,7 +87,7 @@ func select():
 		is_selected = true
 		var tween = create_tween()
 		tween.tween_property(self, "position:y", 
-			starting_position.y + SELECTION_OFFSET, ANIMATION_DURATION)
+			starting_position.y + (SELECTION_OFFSET * hover_direction), ANIMATION_DURATION)
 
 func deselect():
 	if is_selected and not is_card_in_card_slot:
@@ -93,6 +95,10 @@ func deselect():
 		var tween = create_tween()
 		tween.tween_property(self, "position:y", 
 			starting_position.y, ANIMATION_DURATION)
+			
+# Set hover direction based on player position
+func set_hover_direction(direction: int):
+	hover_direction = direction
 
 # Call this when the card is played to the slot
 func play_to_slot():
@@ -139,6 +145,7 @@ func show_back():
 # Call this function when the card is added to a hand
 # to set its initial visibility
 func set_in_hand(is_player_hand: bool):
+	print("Setting card visibility - is player hand: " + str(is_player_hand))
 	if is_player_hand:
 		show_face()
 	else:

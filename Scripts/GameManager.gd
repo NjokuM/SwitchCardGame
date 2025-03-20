@@ -42,6 +42,9 @@ func _ready():
 	
 	await get_tree().process_frame  
 	
+	# Initialize UI elements
+	setup_play_label()
+	
 	# Initialize SessionSync
 	session_sync = preload("res://Scripts/SessionSync.gd").new()
 	add_child(session_sync)
@@ -58,15 +61,36 @@ func _ready():
 		show_play_notification("Waiting for game to synchronize...")
 		
 		# Initialize game state with proper player count
-		num_players = session_mgr.session_data.players.size()
-		if num_players < 2:
+		# Safely get number of players from session data
+		if session_mgr.session_data is Dictionary and "players" in session_mgr.session_data:
+			var players = session_mgr.session_data.players
+			if players is Array:
+				num_players = players.size()
+			elif players is Dictionary:
+				num_players = players.size()
+			else:
+				# Fallback for invalid players data
+				num_players = 2
+				print("Warning: Invalid players data format, defaulting to 2 players")
+		else:
 			num_players = 2  # Fallback to minimum
+			
+		if num_players < 2:
+			num_players = 2  # Ensure minimum of 2 players
 			
 		# Create the player hands first
 		create_player_hands()
 		
 		# Initialize SessionSync
 		session_sync.initialize_game_state(num_players)
+		
+		# Initialize GameStateUI with networked game info
+		var game_state_ui = get_node_or_null("/root/Main/GameStateUI")
+		if game_state_ui:
+			# We'll update this after synchronization completes
+			print("GameStateUI found, will update after synchronization")
+		else:
+			print("Warning: GameStateUI not found")
 		
 		if session_mgr.is_local_player_host():
 			# Host deals the cards
@@ -80,8 +104,14 @@ func _ready():
 		
 		# Initialize game normally
 		print("Game started with", num_players, "players!")
-		setup_play_label()
 		start_game()
+		
+		# Initialize GameStateUI with local game info
+		var game_state_ui = get_node_or_null("/root/Main/GameStateUI")
+		if game_state_ui:
+			game_state_ui.update_from_game_manager(current_turn, game_direction, cards_to_draw)
+		else:
+			print("Warning: GameStateUI not found")
 		
 		
 
@@ -142,7 +172,14 @@ func _on_game_state_synchronized():
 			# Otherwise, show card backs
 			hands[i].update_visibility(i == local_position)
 		
-		print("Updated card visibility - local player at position: ", local_position)		
+		print("Updated card visibility - local player at position: ", local_position)	
+		
+		# Update the game state UI
+		var game_state_ui = get_node_or_null("/root/Main/GameStateUI")
+		if game_state_ui:
+			game_state_ui.update_from_game_manager(current_turn, game_direction, cards_to_draw)
+		else:
+			print("Warning: Could not find GameStateUI to update after synchronization")
 # Network setup
 func _ready_network_setup():
 	# Check if we're in a networked game
@@ -437,18 +474,52 @@ func create_player_hands():
 		# In networked mode, only the local player's hand should be fully visible
 		if is_networked_game:
 			var local_position = -1
+			var session_mgr = get_node_or_null("/root/SessionManager")
 			
 			# Find which position the local player has
-			if player_positions.has(my_peer_id):
+			if session_sync:
+				local_position = session_sync.get_local_player_position()
+			elif player_positions.has(my_peer_id):
 				local_position = player_positions[my_peer_id]
 				
 			# Set whether this is the local player's hand
 			hand.is_player = (i == local_position)
+			
+			# Set player name from session data if available
+			var got_name_from_session = false
+			
+			if session_mgr and session_mgr.session_data and session_mgr.session_data is Dictionary and "players" in session_mgr.session_data:
+				var players = session_mgr.session_data.players
+				# Handle player data safely
+				if players is Array and i < players.size():
+					var player_data = players[i]
+					if player_data is Dictionary and "display_name" in player_data:
+						hand.player_name = player_data.display_name
+						got_name_from_session = true
+				elif players is Dictionary and str(i) in players:
+					var player_data = players[str(i)]
+					if player_data is Dictionary and "display_name" in player_data:
+						hand.player_name = player_data.display_name
+						got_name_from_session = true
+			
+			# Use default names if we didn't get from session
+			if not got_name_from_session:
+				if i == local_position:
+					hand.player_name = "You"
+				else:
+					hand.player_name = "Player " + str(i + 1)
 		else:
 			hand.is_player = true  # In local mode, all hands are visible
-			
+			hand.player_name = "Player " + str(i + 1)
+			if i == 0:
+				hand.player_name = "You"
+				
 		hand.position = positions[i]
 		hand.player_position = i
+		
+		# Set vertical orientation for side hands
+		if (num_players >= 3 and i == 1) or (num_players >= 3 and i == 2) or (num_players == 4 and i == 3):
+			hand.is_vertical = true
 		
 		# Handle rotation based on player positions
 		if is_networked_game:
@@ -529,14 +600,18 @@ func update_hand_visibility():
 		
 		print("Local player position determined as: ", local_position)
 		
-		# Update each hand's visibility
+		# Update each hand's visibility and is_player flag
 		for i in range(hands.size()):
 			var is_local = (i == local_position)
 			print("Setting hand ", i, " visibility: ", is_local)
+			# First update the is_player flag directly
+			hands[i].is_player = is_local
+			# Then call update_visibility
 			hands[i].update_visibility(is_local)
 	else:
 		# In local mode, show all hands' faces for testing
 		for hand in hands:
+			hand.is_player = true
 			hand.update_visibility(true)
 			
 	print("Hand visibility update complete")
@@ -701,7 +776,7 @@ func is_current_player_turn() -> bool:
 # Removed RPC function: network_play_cards
 
 
-# Modify your play_selected_cards function to use SessionSync
+# Handle cards played signal from SessionSync with proper turn handling
 func _on_cards_played(player_index, cards, special_effects):
 	print("Received cards_played signal from player", player_index + 1)
 	
@@ -742,6 +817,69 @@ func _on_cards_played(player_index, cards, special_effects):
 			if card_nodes[i] != null:
 				card_nodes[i].queue_free()
 	
+	# Update local game state from SessionSync
+	if session_sync:
+		# Get the turn and direction from SessionSync which handles special cards
+		current_turn = session_sync.current_turn
+		game_direction = session_sync.game_direction
+		
+		print("DEBUG: Turn updated from SessionSync: ", current_turn)
+		print("DEBUG: Direction updated from SessionSync: ", game_direction)
+	
+	# Show special effect notifications
+	if special_effects and "has_special" in special_effects:
+		print("Processing special effects from networked play")
+		
+		# Jack effect (play again)
+		if "jacks_count" in special_effects:
+			var jacks_count = special_effects.jacks_count
+			var message = "Player " + str(player_index + 1) + " can play " + str(jacks_count) + " more card(s)!"
+			show_play_notification(message)
+			
+		# 8 effect (reverse direction or play again in 2-player)
+		if "eights_count" in special_effects:
+			if num_players == 2:
+				show_play_notification("Player " + str(player_index + 1) + " plays again!")
+			else:
+				show_play_notification("Game direction reversed!")
+				
+		# 7 effect (skip next player)
+		if "sevens_count" in special_effects:
+			var sevens_count = special_effects.sevens_count
+			var skipped_players = []
+			
+			# Calculate which players were skipped
+			var turn_after_play = player_index
+			for i in range(sevens_count):
+				turn_after_play = (turn_after_play + game_direction) % num_players
+				if turn_after_play < 0:
+					turn_after_play += num_players
+				skipped_players.append(turn_after_play + 1)  # +1 for 1-based player numbers
+			
+			if sevens_count == 1:
+				show_play_notification("Player " + str(skipped_players[0]) + "'s turn skipped!")
+			else:
+				var skipped_text = ", ".join(skipped_players.map(func(p): return str(p)))
+				show_play_notification("Players " + skipped_text + " skipped!")
+	
+	# Always check if turn switched to local player
+	if is_networked_game:
+		var local_position = session_sync.get_local_player_position()
+		
+		# If it's the local player's turn now, show a notification
+		if current_turn == local_position:
+			show_play_notification("Your turn now!")
+	
+	# Update hand visibility for the new current player
+	update_hand_visibility()
+	
+	# Update the UI with the latest game state
+	var game_state_ui = get_node_or_null("/root/Main/GameStateUI")
+	if game_state_ui:
+		game_state_ui.update_from_game_manager(current_turn, game_direction, cards_to_draw)
+	else:
+		print("Warning: Could not find GameStateUI to update after cards played")
+	
 # Function to animate and visualize cards being played
 # In GameManager.gd
 # Modify the _visualize_played_cards function
@@ -777,13 +915,15 @@ func _visualize_played_cards(player_index, card_nodes):
 			card_nodes[i].queue_free()
 
 # Modify the play_selected_cards function to use SessionSync
-# Modify play_selected_cards to use SessionSync without immediate local feedback
+# Modify play_selected_cards to handle both local and networked games correctly
 func play_selected_cards():
 	if selected_cards.is_empty():
 		return
 		
+	# Validate that the card can be played
 	if not card_slot.can_place_card(selected_cards[0]):
 		print("Cannot play these cards!")
+		show_play_notification("This card doesn't match!")
 		return
 	
 	if is_networked_game:
@@ -798,13 +938,23 @@ func play_selected_cards():
 		# Get local player position
 		var local_position = session_sync.get_local_player_position()
 		
+		# Validate it's the player's turn
+		if local_position != current_turn:
+			print("DEBUG: Not your turn to play cards")
+			show_play_notification("Not your turn!")
+			return
+		
+		print("DEBUG: Submitting networked card play via SessionSync")
+		
 		# Submit play through SessionSync
 		session_sync.submit_card_play(local_position, card_data_array)
 		
 		# DON'T call play_selected_cards_internal() here
-		# Instead rely on the _on_cards_played signal callback
+		# Instead rely on the _on_cards_played signal callback from SessionSync
+		# The client UI will be updated when the host confirms the move
 	else:
 		# Local game, just play the cards
+		print("DEBUG: Processing local card play")
 		play_selected_cards_internal()
 				
 # Internal play_selected_cards implementation used by both local and network versions
@@ -878,7 +1028,12 @@ func play_selected_cards_internal():
 			
 		show_play_notification(extra_message)
 	
-# Check for win condition
+	# Update the game state UI right after cards are played
+	var game_state_ui = get_node_or_null("/root/Main/GameStateUI")
+	if game_state_ui:
+		game_state_ui.update_from_game_manager(current_turn, game_direction, cards_to_draw)
+	
+	# Check for win condition
 	if hands[current_turn].hand.is_empty():
 		# Check if the last card played was a power card
 		var last_card = selected_cards[selected_cards.size() - 1]
@@ -913,6 +1068,8 @@ func play_selected_cards_internal():
 		switch_turn()
 		
 func handle_power_card_effects(card, sevens_count = 0):
+	print("DEBUG: Processing power card effect: ", card.value, " of ", card.suit)
+	
 	match card.value:
 		"2":
 			# Calculate next player considering game direction
@@ -950,28 +1107,45 @@ func handle_power_card_effects(card, sevens_count = 0):
 				show_play_notification("Player " + str(original_turn + 1) + " played " + 
 									  str(sevens_count) + " 7s. Skipping " + str(players_to_skip) + 
 									  " players to Player " + str(current_turn + 1) + "!")
+				
+				# In local games, we skip turn switching since we've already set current_turn
+				skip_turn_switch = true
+				print("DEBUG: Turn already advanced for 7s, setting skip_turn_switch to true")
 			else:
 				# Single 7 - skip one player
 				current_turn = (current_turn + game_direction) % num_players
 				if current_turn < 0:
 					current_turn = num_players - 1
 				show_play_notification("Skipping Player " + str(current_turn + 1) + "'s turn!")
+				
+				# In local games, we skip turn switching since we've already set current_turn
+				skip_turn_switch = true
+				print("DEBUG: Turn already advanced for 7, setting skip_turn_switch to true")
 			
 		"8":
 			if num_players == 2:
-				# In 2-player mode, 8 works like 7 (skip/play again)
+				# In 2-player mode, 8 works like Jack (play again)
 				show_play_notification("Player " + str(current_turn + 1) + " plays again!")
 				skip_turn_switch = true  # Don't switch turns
+				print("DEBUG: 8 in 2-player mode - player goes again")
 			else:
 				# In 3+ player mode, reverse direction
 				game_direction *= -1
 				show_play_notification("Game direction reversed!")
+				print("DEBUG: 8 played - game direction reversed to ", game_direction)
+				
+		"Jack":
+			# Jack always lets the player go again
+			show_play_notification("Player " + str(current_turn + 1) + " plays again!")
+			skip_turn_switch = true  # Don't switch turns
+			print("DEBUG: Jack played - player goes again")
 				
 		"Ace":
 			# Prompt for suit selection
 			waiting_for_suit_selection = true
 			skip_turn_switch = true  # Don't switch turns until suit is selected
 			show_suit_selection_ui()
+			print("DEBUG: Ace played - waiting for suit selection")
 			
 		"King":
 			if card.suit == "Hearts":
@@ -1000,6 +1174,11 @@ func handle_power_card_effects(card, sevens_count = 0):
 			if card.suit == "Hearts" and cards_to_draw == 5:
 				cards_to_draw = 7  # Convert 5 to 7 cards
 				show_play_notification("Pick up increased to 7 cards!")
+				
+	# Update the game state UI after handling power card effects
+	var game_state_ui = get_node_or_null("/root/Main/GameStateUI")
+	if game_state_ui:
+		game_state_ui.update_from_game_manager(current_turn, game_direction, cards_to_draw)
 
 # Add this function to check if a player has a specific card
 func has_card_in_hand(player_index, value, suit = null):
@@ -1408,7 +1587,12 @@ func switch_turn():
 		current_turn = new_turn
 		print("It's now Player", current_turn + 1, "'s turn!")
 		update_hand_visibility()
-		
+	
+	# Update the game state UI
+	var game_state_ui = get_node_or_null("/root/Main/GameStateUI")
+	if game_state_ui:
+		game_state_ui.update_from_game_manager(current_turn, game_direction, cards_to_draw)
+	
 func get_next_turn(current: int, direction: int, players: int) -> int:
 	var next = int(current) + int(direction)
 	
