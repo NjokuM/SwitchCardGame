@@ -369,16 +369,12 @@ func start_game():
 				# Local mode - place card directly
 				card_slot.place_card(first_card)
 			else:
-				# Networked mode - server places locally and uses RPC for clients
+				# Networked mode - server places card locally (Firebase will sync)
 				card_slot.place_card(first_card)
-				place_card_networked.rpc(first_card.value, first_card.suit)
 	
 	print("Finished dealing cards. Starting turn for Player", current_turn + 1)
 	
-@rpc("authority", "call_remote", "reliable")  # Change to call_remote
-func place_card_networked(value: String, suit: String):
-	var new_card = deck.create_card_from_data(value, suit)
-	card_slot.place_card(new_card)
+# Removed RPC function: place_card_networked
 	
 func draw_valid_starting_card():
 	var card = deck.draw_card_for_slot()
@@ -546,27 +542,7 @@ func update_hand_visibility():
 	print("Hand visibility update complete")
 	
 # Network version for drawing cards
-@rpc("any_peer", "call_local")
-func network_draw_card(peer_id):
-	# Find which player this peer is
-	if not player_positions.has(peer_id):
-		print("Error: Unknown peer tried to draw a card: ", peer_id)
-		return
-	
-	var player_position = player_positions[peer_id]
-	
-	# Verify it's their turn
-	if player_position != current_turn:
-		print("Error: Player tried to draw a card out of turn")
-		return
-	
-	# Only the server should do the actual card drawing
-	if multiplayer.is_server() or not is_networked_game:
-		print("Server drawing card for Player " + str(player_position + 1))
-		draw_card_for_player(player_position)
-	else:
-		# Clients just wait for the server to handle it
-		print("Client waiting for server to process draw request")
+# Removed RPC function: network_draw_card
 
 # Modified draw card function that supports both network and local play
 func draw_card_for_current_player():
@@ -601,32 +577,7 @@ func draw_card_for_player(player_position):
 	return drawn_card
 
 # Network version of card selection
-@rpc("any_peer", "call_local")
-func network_select_card(peer_id, card_value, card_suit):
-	# Find which player position this peer is using
-	if not player_positions.has(peer_id):
-		print("Error: Unknown peer tried to select card: ", peer_id)
-		return
-	
-	var player_position = player_positions[peer_id]
-	
-	# Verify it's their turn
-	if player_position != current_turn:
-		print("Error: Player tried to select card out of turn")
-		return
-	
-	# Find the card in the player's hand by value and suit
-	var card_to_select = null
-	for card in hands[player_position].hand:
-		if card.value == card_value and card.suit == card_suit:
-			card_to_select = card
-			break
-	
-	if card_to_select:
-		# Call internal selection logic
-		select_card_internal(card_to_select)
-	else:
-		print("Error: Card not found in player's hand:", card_value, "of", card_suit)
+# Removed RPC function: network_select_card
 
 # Modified select_card that supports both network and local play
 # Replace the select_card and select_card_internal functions in GameManager.gd
@@ -747,34 +698,7 @@ func is_current_player_turn() -> bool:
 		return true  # For local testing, allow all actions
 
 # Network version of playing cards
-@rpc("any_peer", "call_local")
-func network_play_cards(peer_id, card_data_array):
-	# This function is called on all clients when a player plays cards
-	
-	# Find which player position this peer is using
-	if not player_positions.has(peer_id):
-		print("Error: Unknown peer ID tried to play cards: ", peer_id)
-		return
-	
-	var player_position = player_positions[peer_id]
-	
-	# Verify it's their turn
-	if player_position != current_turn:
-		print("Error: Player tried to play cards out of turn")
-		return
-	
-	# Recreate selected cards from the data
-	selected_cards = []
-	
-	for card_dict in card_data_array:
-		# Find the card in the player's hand by value and suit
-		for card in hands[player_position].hand:
-			if card.value == card_dict.value and card.suit == card_dict.suit:
-				selected_cards.append(card)
-				break
-	
-	# Now call the original play_selected_cards logic
-	play_selected_cards_internal()
+# Removed RPC function: network_play_cards
 
 
 # Modify your play_selected_cards function to use SessionSync
@@ -1329,22 +1253,7 @@ func defend_against_attack(card = null):
 		# Skip directly to the next player
 		switch_turn()
 # Networked version of suit selection
-@rpc("any_peer", "call_local")
-func network_select_suit(peer_id, suit):
-	# Find which player position this peer is using
-	if not player_positions.has(peer_id):
-		print("Error: Unknown peer tried to select suit: ", peer_id)
-		return
-	
-	var player_position = player_positions[peer_id]
-	
-	# Verify it's their turn
-	if player_position != current_turn:
-		print("Error: Player tried to select suit out of turn")
-		return
-	
-	# Call internal suit selection logic
-	select_suit_internal(suit)
+# Removed RPC function: network_select_suit
 
 # Function to show suit selection UI for Ace
 func show_suit_selection_ui():
@@ -1382,8 +1291,8 @@ func show_suit_selection_ui():
 # Function to handle suit selection button press
 func select_suit(suit):
 	if is_networked_game:
-		# In networked game, send selection via RPC
-		network_select_suit.rpc(my_peer_id, suit)
+		# In networked game, use SessionSync
+		session_sync.submit_suit_selection(suit)
 	else:
 		# Local gameplay, use internal function directly
 		select_suit_internal(suit)
@@ -1408,24 +1317,7 @@ func select_suit_internal(suit):
 	switch_turn()
 
 # Network version of last card declaration
-@rpc("any_peer", "call_local")
-func network_declare_last_card(peer_id):
-	# Find which player position this peer is using
-	if not player_positions.has(peer_id):
-		print("Error: Unknown peer tried to declare last card: ", peer_id)
-		return
-	
-	var player_position = player_positions[peer_id]
-	
-	# Verify it's their turn
-	if player_position != current_turn:
-		print("Error: Player tried to declare last card out of turn")
-		return
-	
-	# Call internal last card declaration
-	last_card_declared = true
-	show_play_notification("Player " + str(player_position + 1) + " declares Last Card!")
-	hide_last_card_button()
+# Removed RPC function: network_declare_last_card
 
 # Add this function to show the Last Card button
 func show_last_card_button():
@@ -1478,25 +1370,14 @@ func hide_last_card_button():
 # Add this function to handle the Last Card button press
 func _on_last_card_pressed():
 	if is_networked_game:
-		network_declare_last_card.rpc(my_peer_id)
+		session_sync.submit_last_card_declaration()
 	else:
 		last_card_declared = true
 		show_play_notification("Player " + str(current_turn + 1) + " declares Last Card!")
 		hide_last_card_button()
 
 # Network version of turn switching
-@rpc("any_peer", "call_local")
-func network_switch_turn(new_turn, new_direction):
-	# Update game direction
-	game_direction = new_direction
-	
-	# Update current turn
-	current_turn = new_turn
-	
-	print("It's now Player", current_turn + 1, "'s turn!")
-	
-	# Update hand visibility
-	update_hand_visibility()
+# Removed RPC function: network_switch_turn
 
 func switch_turn():
 	# Skip turn switching if still waiting for player input
@@ -1520,8 +1401,8 @@ func switch_turn():
 	var new_turn = get_next_turn(current_turn, game_direction, num_players)
 	
 	if is_networked_game:
-		# In networked mode, whoever initiated the turn change sends the update
-		network_switch_turn.rpc(new_turn, game_direction)
+		# In networked mode, update through SessionSync
+		session_sync.submit_turn_change(new_turn, game_direction)
 	else:
 		# In local mode, just update directly
 		current_turn = new_turn

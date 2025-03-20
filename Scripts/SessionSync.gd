@@ -490,3 +490,154 @@ func _process_move(move):
 		elif move.action == "draw_card" and "player_index" in move:
 			_process_card_draw(move.player_index)
 			_sync_game_state()
+			
+		elif move.action == "select_suit" and "player_index" in move and "suit" in move:
+			_process_suit_selection(move.player_index, move.suit)
+			_sync_game_state()
+			
+		elif move.action == "declare_last_card" and "player_index" in move:
+			_process_last_card_declaration(move.player_index)
+			_sync_game_state()
+			
+		elif move.action == "turn_change" and "new_turn" in move and "new_direction" in move:
+			_process_turn_change(move.new_turn, move.new_direction)
+			_sync_game_state()
+
+# Submit a suit selection (for Ace)
+func submit_suit_selection(suit: String):
+	if !is_connected:
+		print("DEBUG: Not connected to multiplayer session")
+		return
+		
+	# Get local player position
+	var player_index = get_local_player_position()
+	
+	# Check if it's this player's turn
+	if player_index != current_turn:
+		print("DEBUG: Not your turn to select suit!")
+		return
+		
+	print("DEBUG: Submitting suit selection: ", suit)
+	
+	# If we're the host, process directly
+	if is_host:
+		_process_suit_selection(player_index, suit)
+		_sync_game_state()
+	else:
+		# Client: Send to Firebase
+		var session_mgr = get_node_or_null("/root/SessionManager")
+		if session_mgr:
+			var move_data = {
+				"action": "select_suit",
+				"player_index": player_index,
+				"suit": suit,
+				"timestamp": Time.get_unix_time_from_system()
+			}
+			session_mgr.submit_move(move_data)
+		
+# Process suit selection
+func _process_suit_selection(player_index: int, suit: String):
+	print("DEBUG: Processing suit selection: ", suit, " from player ", player_index)
+	
+	# Check if current card is an Ace
+	if current_card == null or current_card.value != "Ace":
+		print("DEBUG: Cannot select suit - current card is not an Ace")
+		return
+		
+	# Add chosen suit to the current card
+	current_card["chosen_suit"] = suit
+	print("DEBUG: Updated Ace with chosen suit: ", suit)
+	
+	# Switch turns
+	var old_turn = current_turn
+	var next_turn = int(current_turn) + int(game_direction)
+	var num_players = int(player_hands.size())
+	
+	# Handle negative values manually instead of using modulo
+	if next_turn >= num_players:
+		next_turn = next_turn - num_players
+	elif next_turn < 0:
+		next_turn = num_players + next_turn
+	
+	current_turn = next_turn
+	print("DEBUG: Turn switched from ", old_turn, " to ", current_turn, " after suit selection")
+
+# Submit last card declaration
+func submit_last_card_declaration():
+	if !is_connected:
+		print("DEBUG: Not connected to multiplayer session")
+		return
+		
+	# Get local player position
+	var player_index = get_local_player_position()
+	
+	# Check if it's this player's turn
+	if player_index != current_turn:
+		print("DEBUG: Not your turn to declare last card!")
+		return
+		
+	print("DEBUG: Submitting last card declaration")
+	
+	# If we're the host, process directly
+	if is_host:
+		_process_last_card_declaration(player_index)
+		_sync_game_state()
+	else:
+		# Client: Send to Firebase
+		var session_mgr = get_node_or_null("/root/SessionManager")
+		if session_mgr:
+			var move_data = {
+				"action": "declare_last_card",
+				"player_index": player_index,
+				"timestamp": Time.get_unix_time_from_system()
+			}
+			session_mgr.submit_move(move_data)
+
+# Process last card declaration
+func _process_last_card_declaration(player_index: int):
+	print("DEBUG: Processing last card declaration from player ", player_index)
+	
+	# Check if player really has only one card left
+	if player_hands[player_index].size() != 1:
+		print("DEBUG: Player does not have exactly one card left")
+		return
+		
+	# Update game state to track this (could be stored in a custom field)
+	if !current_card.has("last_card_declared"):
+		current_card["last_card_declared"] = []
+	
+	# Add player to the list of those who declared last card
+	if !current_card.last_card_declared.has(player_index):
+		current_card.last_card_declared.append(player_index)
+		print("DEBUG: Player ", player_index, " has declared last card")
+
+# Submit turn change
+func submit_turn_change(new_turn: int, new_direction: int):
+	if !is_connected:
+		print("DEBUG: Not connected to multiplayer session")
+		return
+		
+	print("DEBUG: Submitting turn change from ", current_turn, " to ", new_turn)
+	
+	# If we're the host, process directly
+	if is_host:
+		_process_turn_change(new_turn, new_direction)
+		_sync_game_state()
+	else:
+		# Client: Send to Firebase
+		var session_mgr = get_node_or_null("/root/SessionManager")
+		if session_mgr:
+			var move_data = {
+				"action": "turn_change",
+				"new_turn": new_turn,
+				"new_direction": new_direction,
+				"timestamp": Time.get_unix_time_from_system()
+			}
+			session_mgr.submit_move(move_data)
+
+# Process turn change
+func _process_turn_change(new_turn: int, new_direction: int):
+	print("DEBUG: Processing turn change from ", current_turn, " to ", new_turn)
+	
+	current_turn = new_turn
+	game_direction = new_direction

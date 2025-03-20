@@ -48,16 +48,12 @@ func shuffle_deck():
 		deck.shuffle()
 		print("✅ Deck shuffled")
 		
-		# If in network mode, send the shuffled deck to all clients
+		# Firebase sync will handle this instead of RPC
 		if is_networked:
-			sync_deck.rpc(deck)
+			print("✅ Server shuffled deck - Firebase will sync")
 	# Non-server clients don't shuffle in networked mode
 
-# Add a new RPC to sync the deck state
-@rpc("authority", "call_local")
-func sync_deck(shuffled_deck):
-	deck = shuffled_deck
-	print("✅ Received shuffled deck from server")
+# Removed RPC function: sync_deck
 
 func deal_initial_cards() -> void:
 	var network = get_node_or_null("/root/NetworkManager")
@@ -166,9 +162,9 @@ func deal_initial_cards() -> void:
 					await get_tree().create_timer(CARD_DRAW_SPEED).timeout
 					var card = deal_card_to_player(j)
 					
-					# Broadcast the deal in networked mode
+					# Firebase sync will handle this instead of RPC
 					if card:
-						sync_deal_card.rpc(j, card.value, card.suit)
+						print("✅ Card dealt to player " + str(j) + " - Firebase will sync")
 	
 	# Local game handling
 	else:
@@ -350,23 +346,7 @@ func _shuffle_deck_with_seed(rng: RandomNumberGenerator):
 	
 	print("Deck shuffled with seed: " + str(rng.seed))
 
-# Add RPC to synchronize dealing
-@rpc("authority", "call_local")
-func sync_deal_card(player_index, card_value, card_suit):
-	# Find and remove this specific card from the deck
-	var found_index = -1
-	for i in range(deck.size()):
-		if deck[i].value == card_value and deck[i].suit == card_suit:
-			found_index = i
-			break
-	
-	if found_index >= 0:
-		deck.remove_at(found_index)
-		
-		# Create the card and add it to the player's hand
-		var new_card = CARD_SCENE.instantiate()
-		new_card.set_card_data(card_value, card_suit)
-		game_manager.hands[player_index].add_card(new_card, CARD_DRAW_SPEED)
+# Removed RPC function: sync_deal_card
 
 func deal_card_to_player(player_index: int):
 	if deck.is_empty():
@@ -388,38 +368,9 @@ func deal_card_to_player(player_index: int):
 	game_manager.hands[player_index].add_card(new_card, CARD_DRAW_SPEED)
 	return new_card
 
-@rpc("any_peer", "call_local")
-func network_draw_card(player_index: int):
-	var network = get_node_or_null("/root/NetworkManager")
-	var is_networked = network and network.multiplayer and network.player_info.size() > 0
-	
-	# Only the server decides which card is drawn
-	if !is_networked or network.multiplayer.is_server():
-		if deck.is_empty():
-			reshuffle_discard_pile()
-			if deck.is_empty():
-				print("❌ No cards left to draw!")
-				return
-				
-		var card_data = deck.pop_front()
-		print("✅ Server selected card to draw:", card_data["value"], "of", card_data["suit"])
-		
-		# Broadcast the drawn card to all clients
-		if is_networked:
-			sync_draw_card.rpc(player_index, card_data.value, card_data.suit)
-		else:
-			# In local mode, create and add the card directly
-			var new_card = CARD_SCENE.instantiate()
-			new_card.set_card_data(card_data["value"], card_data["suit"])
-			game_manager.hands[player_index].add_card(new_card, CARD_DRAW_SPEED)
+# Removed RPC function: network_draw_card
 
-@rpc("authority", "call_local")
-func sync_draw_card(player_index, card_value, card_suit):
-	# Create and add the card on all clients
-	var new_card = CARD_SCENE.instantiate()
-	new_card.set_card_data(card_value, card_suit)
-	print("✅ Drawing card:", card_value, "of", card_suit, "for Player", player_index + 1)
-	game_manager.hands[player_index].add_card(new_card, CARD_DRAW_SPEED)
+# Removed RPC function: sync_draw_card
 
 func draw_card(player_index: int):
 	print("DEBUG: Draw request for Player " + str(player_index + 1))
@@ -428,9 +379,9 @@ func draw_card(player_index: int):
 	var is_networked = network and network.multiplayer and network.player_info.size() > 0
 	
 	if is_networked:
-		# Use RPC to synchronize card drawing
-		network_draw_card.rpc(player_index)
-		return null  # The actual card will be created by the RPC
+		# Use Firebase to synchronize card drawing
+		print("✅ Drawing card for player " + str(player_index) + " - Firebase will sync")
+		return null  # The actual card will be created by Firebase sync
 	else:
 		# Local mode - draw directly
 		if deck.is_empty():
@@ -471,32 +422,15 @@ func draw_valid_starting_card():
 			return_card_to_deck(card)
 			card = draw_card_for_slot()
 			
-		# Broadcast initial card in networked mode
+		# Firebase sync will handle this instead of RPC
 		if is_traditional_network and card:
-			sync_initial_card.rpc(card.value, card.suit)
+			print("✅ Initial card selected - Firebase will sync")
 			
 		return card
 	else:
-		# Non-server clients wait for the RPC
+		# Non-server clients wait for Firebase sync
 		return null
-@rpc("authority", "call_local")
-func sync_initial_card(card_value, card_suit):
-	# Find and remove this specific card from the deck
-	var found_index = -1
-	for i in range(deck.size()):
-		if deck[i].value == card_value and deck[i].suit == card_suit:
-			found_index = i
-			break
-			
-	if found_index >= 0:
-		deck.remove_at(found_index)
-		
-	# Create the card 
-	var new_card = CARD_SCENE.instantiate()
-	new_card.set_card_data(card_value, card_suit)
-	
-	# Update game state
-	card_slot.place_card(new_card)
+# Removed RPC function: sync_initial_card
 	
 func draw_card_for_slot():
 	if deck.is_empty():
