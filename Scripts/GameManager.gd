@@ -46,6 +46,7 @@ func _ready():
 	session_sync = preload("res://Scripts/SessionSync.gd").new()
 	add_child(session_sync)
 	session_sync.game_state_synchronized.connect(_on_game_state_synchronized)
+	session_sync.cards_played.connect(_on_cards_played)
 	
 	# Check if we're in a networked session
 	var session_mgr = get_node_or_null("/root/SessionManager")
@@ -543,6 +544,7 @@ func update_hand_visibility():
 			hand.update_visibility(true)
 			
 	print("Hand visibility update complete")
+	
 # Network version for drawing cards
 @rpc("any_peer", "call_local")
 func network_draw_card(peer_id):
@@ -627,81 +629,113 @@ func network_select_card(peer_id, card_value, card_suit):
 		print("Error: Card not found in player's hand:", card_value, "of", card_suit)
 
 # Modified select_card that supports both network and local play
+# Replace the select_card and select_card_internal functions in GameManager.gd
+
+# Modified select_card that supports both network and local play
 func select_card(card):
 	if not card:
-		print("Invalid card")
+		print("DEBUG: Invalid card in select_card")
 		return
 		
 	# Check if card has required properties
 	if not ("value" in card) or not ("suit" in card):
-		print("❌ Card missing required properties in select_card")
+		print("DEBUG: Card missing required properties in select_card")
 		return
 	
+	print("DEBUG: Selecting card: ", card.value, " of ", card.suit)
+	
 	if is_networked_game:
-		# In networked game, send selection via RPC
-		network_select_card.rpc(my_peer_id, card.value, card.suit)
+		# In networked game, check turn before sending selection
+		var local_position = session_sync.get_local_player_position()
+		if local_position != current_turn:
+			print("DEBUG: Not your turn! Current turn:", current_turn, " Local position:", local_position)
+			show_play_notification("Not your turn!")
+			return
+			
+		# Use internal function directly for networked games to avoid RPC issues
+		select_card_internal(card)
 	else:
 		# Local gameplay, use internal function directly
 		select_card_internal(card)
 
 # Internal select_card implementation used by both local and network versions
 func select_card_internal(card):
-	if not is_current_player_turn() or not card:
-		print("Not current player's turn or invalid card")
-		return
-		
+	print("DEBUG: select_card_internal for: ", card.value, " of ", card.suit)
+	
 	# Make sure the card is actually in the current player's hand
-	if not hands[current_turn].hand.has(card):
-		print("❌ Attempted to select a card not in current player's hand")
+	var card_in_hand = false
+	for c in hands[current_turn].hand:
+		if c == card:
+			card_in_hand = true
+			break
+			
+	if not card_in_hand:
+		print("DEBUG: Card not found in current player's hand")
 		return
 		
 	if card in selected_cards:
 		# Deselect card
 		selected_cards.erase(card)
 		card.deselect()
-		print("Card deselected:", card.value, "of", card.suit)
+		print("DEBUG: Card deselected:", card.value, "of", card.suit)
 	else:
 		# Check if card can be selected
 		if can_select_card(card):
 			selected_cards.append(card)
 			card.select()
-			print("Card selected:", card.value, "of", card.suit)
+			print("DEBUG: Card selected:", card.value, "of", card.suit)
 		else:
-			print("Cannot select this card! Doesn't match current card in slot.")
+			print("DEBUG: Cannot select this card - doesn't match current card in slot")
+			show_play_notification("This card doesn't match!")
 			
 			# Safely access last played card properties
 			var last_card = card_slot.get_last_played_card()
 			if last_card and "value" in last_card:
-				print("Card in slot:", last_card.value)
+				print("DEBUG: Current card in slot:", last_card.value, "of", last_card.suit)
 			
 			# Now we can safely print the card properties
-			print("Trying to play:", card.value, "of", card.suit)
-
+			print("DEBUG: Trying to play:", card.value, "of", card.suit)
 func can_select_card(card) -> bool:
+	print("DEBUG: Checking if card can be selected: ", card.value, " of ", card.suit)
+	
 	# First card must match the card in slot
 	if selected_cards.is_empty():
+		print("DEBUG: First card being selected")
+		
+		# Get the current card in the slot for better debugging
+		var last_played = card_slot.get_last_played_card()
+		if last_played:
+			print("DEBUG: Card in slot: ", last_played.value, " of ", last_played.suit)
+			
+			# Check for Ace with chosen suit
+			if last_played.value == "Ace" and last_played.get("chosen_suit"):
+				print("DEBUG: Last card was Ace with chosen suit: ", last_played.chosen_suit)
+				print("DEBUG: Current card suit: ", card.suit)
+			
+		else:
+			print("DEBUG: No card in slot yet")
+		
 		# If we just played an 8 in 2-player mode or a Jack,
 		# we need to check against the current top card
 		var can_place = card_slot.can_place_card(card)
-		print("Checking if can place card:", can_place)
+		print("DEBUG: Card slot says can place card: ", can_place)
 		return can_place
 	
 	# For normal multiple card selection, we just need the same value
 	# Even if we're in a special turn after 8 or Jack
 	if not card or not ("value" in card):
-		print("❌ Card being checked is missing required properties")
+		print("DEBUG: Card being checked is missing required properties")
 		return false
 	
 	if not selected_cards[0] or not ("value" in selected_cards[0]):
-		print("❌ First selected card is missing required properties")
+		print("DEBUG: First selected card is missing required properties")
 		return false
 	
 	# Check if value matches first selected card,
 	# regardless of whether it's after a special card
 	var value_matches = card.value == selected_cards[0].value
-	print("Checking if value matches first selected card:", value_matches)
+	print("DEBUG: Checking if value matches first selected card: ", value_matches)
 	return value_matches
-
 func is_current_player_turn() -> bool:
 	if is_networked_game:
 		# Check if it's the local player's turn
@@ -742,8 +776,84 @@ func network_play_cards(peer_id, card_data_array):
 	# Now call the original play_selected_cards logic
 	play_selected_cards_internal()
 
-# Modified play_selected_cards to support both network and local play
+
 # Modify your play_selected_cards function to use SessionSync
+func _on_cards_played(player_index, cards, special_effects):
+	print("Received cards_played signal from player", player_index + 1)
+	
+	# Just for safety, clear any selected cards
+	selected_cards.clear()
+	
+	# Convert the dictionary representation of cards to actual card nodes
+	var card_nodes = []
+	
+	for card_data in cards:
+		# Create a new card instance
+		var new_card = deck.create_card_from_data(card_data.value, card_data.suit)
+		card_nodes.append(new_card)
+		
+		# If this came from a hand, make sure to remove it
+		if player_index < hands.size():
+			# Check if the card is in the player's hand
+			for hand_card in hands[player_index].hand:
+				if hand_card.value == card_data.value and hand_card.suit == card_data.suit:
+					hands[player_index].remove_card(hand_card)
+					break
+	
+	# Show notification of what was played
+	var played_cards_descriptions = []
+	for card in card_nodes:
+		played_cards_descriptions.append(str(card.value) + " of " + str(card.suit))
+	
+	var played_cards_text = ", ".join(played_cards_descriptions)
+	show_play_notification("Player " + str(player_index + 1) + " played: " + played_cards_text)
+	
+	# Place the last card in the slot
+	if card_nodes.size() > 0:
+		var last_card = card_nodes[card_nodes.size() - 1]
+		card_slot.place_card(last_card)
+		
+		# Clean up any other temporary cards
+		for i in range(card_nodes.size() - 1):
+			if card_nodes[i] != null:
+				card_nodes[i].queue_free()
+	
+# Function to animate and visualize cards being played
+# In GameManager.gd
+# Modify the _visualize_played_cards function
+func _visualize_played_cards(player_index, card_nodes):
+	if player_index < 0 or player_index >= hands.size():
+		print("Invalid player index for card visualization")
+		return
+	
+	# Show notification of what was played
+	var played_cards_descriptions = []
+	for card in card_nodes:
+		played_cards_descriptions.append(str(card.value) + " of " + str(card.suit))
+	
+	var played_cards_text = ", ".join(played_cards_descriptions)
+	show_play_notification("Player " + str(player_index + 1) + " played: " + played_cards_text)
+	
+	# Animate the last card to the slot
+	if card_nodes.size() > 0:
+		var last_card = card_nodes[card_nodes.size() - 1]
+		
+		# Make sure the card has been properly initialized before placing it
+		if !last_card.has_node("CardFaceImage") or last_card.face_texture == null:
+			print("Ensuring card is properly initialized")
+			last_card.set_card_data(last_card.value, last_card.suit)
+		
+		# Add card to the slot with animation
+		card_slot.place_card(last_card)
+		
+		# Clean up any temporary cards
+		for i in range(card_nodes.size() - 1):
+			if card_nodes[i].get_parent():
+				card_nodes[i].get_parent().remove_child(card_nodes[i])
+			card_nodes[i].queue_free()
+
+# Modify the play_selected_cards function to use SessionSync
+# Modify play_selected_cards to use SessionSync without immediate local feedback
 func play_selected_cards():
 	if selected_cards.is_empty():
 		return
@@ -767,12 +877,12 @@ func play_selected_cards():
 		# Submit play through SessionSync
 		session_sync.submit_card_play(local_position, card_data_array)
 		
-		# Also play the cards locally for immediate feedback
-		play_selected_cards_internal()
+		# DON'T call play_selected_cards_internal() here
+		# Instead rely on the _on_cards_played signal callback
 	else:
 		# Local game, just play the cards
 		play_selected_cards_internal()
-		
+				
 # Internal play_selected_cards implementation used by both local and network versions
 func play_selected_cards_internal():
 	if selected_cards.is_empty():
@@ -1395,10 +1505,8 @@ func switch_turn():
 		
 	# Apply any accumulated card draws to the next player
 	if cards_to_draw > 0:
-		# Draw cards for the next player
-		var next_player = (current_turn + game_direction) % num_players
-		if next_player < 0:
-			next_player = num_players - 1
+		# Draw cards for the next player - use the safe function
+		var next_player = get_next_turn(current_turn, game_direction, num_players)
 			
 		for i in range(cards_to_draw):
 			var drawn_card = deck.draw_card(next_player)
@@ -1408,10 +1516,8 @@ func switch_turn():
 		show_play_notification("Player " + str(next_player + 1) + " drew " + str(cards_to_draw) + " cards!")
 		cards_to_draw = 0
 	
-	# Update current turn based on game direction
-	var new_turn = (current_turn + game_direction) % num_players
-	if new_turn < 0:
-		new_turn = num_players - 1
+	# Update current turn based on game direction - use the safe function
+	var new_turn = get_next_turn(current_turn, game_direction, num_players)
 	
 	if is_networked_game:
 		# In networked mode, whoever initiated the turn change sends the update
@@ -1422,13 +1528,32 @@ func switch_turn():
 		print("It's now Player", current_turn + 1, "'s turn!")
 		update_hand_visibility()
 		
+func get_next_turn(current: int, direction: int, players: int) -> int:
+	var next = int(current) + int(direction)
+	
+	# Handle wraparound manually
+	if next >= players:
+		next = next - players
+	elif next < 0:
+		next = players + next
+		
+	return next
+		
 func _on_card_clicked(card):
+
+	
 	# In networked games, only process clicks for cards in the local player's hand
 	if is_networked_game:
 		# Find which position is the local player
 		var local_player_position = -1
-		if player_positions.has(my_peer_id):
+		if session_sync:
+			local_player_position = session_sync.get_local_player_position()
+			print("DEBUG: Local player position from session_sync: ", local_player_position)
+		elif player_positions.has(my_peer_id):
 			local_player_position = player_positions[my_peer_id]
+			print("DEBUG: Local player position from player_positions: ", local_player_position)
+		else:
+			print("DEBUG: Cannot determine local player position!")
 		
 		# Check if this card belongs to the local player
 		var is_local_player_card = false
@@ -1437,11 +1562,20 @@ func _on_card_clicked(card):
 				if c == card:
 					is_local_player_card = true
 					break
+			
+			print("DEBUG: Is local player's card? ", is_local_player_card)
+			print("DEBUG: Current turn: ", current_turn)
+			print("DEBUG: Cards in hand: ", hands[local_player_position].hand.size())
 		
 		if is_local_player_card and current_turn == local_player_position:
+			print("DEBUG: Proceeding with card selection")
 			select_card(card)
 		elif is_local_player_card:
-			show_play_notification("It's not your turn!")
+			show_play_notification("Not your turn!")
+			print("DEBUG: Not player's turn")
+		else:
+			print("DEBUG: Card doesn't belong to local player")
 	else:
 		# Local gameplay - handle all clicks
+		print("DEBUG: Local game mode - selecting card")
 		select_card(card)

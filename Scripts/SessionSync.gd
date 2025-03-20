@@ -4,6 +4,7 @@ extends Node
 # It works with both Firebase-based sessions and traditional multiplayer
 
 signal game_state_synchronized
+signal cards_played(player_index, cards, special_effects)
 
 # Connection status
 var is_connected = false
@@ -133,31 +134,6 @@ func get_local_player_position() -> int:
 		return session_mgr.get_local_player_position()
 	return 0  # Default to first player in local play
 
-# Submit a card play action
-func submit_card_play(player_index: int, cards: Array):
-	if !is_connected:
-		return
-	
-	# Check if it's this player's turn
-	if player_index != current_turn:
-		print("Not your turn!")
-		return
-	
-	# If we're the host, process the play directly
-	if is_host:
-		_process_card_play(player_index, cards)
-		_sync_game_state()
-	else:
-		# Client: Send play to Firebase
-		var session_mgr = get_node_or_null("/root/SessionManager")
-		if session_mgr:
-			var move_data = {
-				"action": "play_cards",
-				"player_index": player_index,
-				"cards": cards
-			}
-			session_mgr.submit_move(move_data)
-
 # Submit a card draw action
 func submit_card_draw(player_index: int):
 	if !is_connected:
@@ -214,26 +190,118 @@ func _initialize_and_shuffle_deck():
 	
 	print("Deck initialized and shuffled with seed: ", seed_value)
 
-# Process a card play
+# Replace the card play handling functions in SessionSync.gd
+
+# Submit a card play action with improved logging and error handling
+func submit_card_play(player_index: int, cards: Array):
+	if !is_connected:
+		print("DEBUG: Not connected to multiplayer session")
+		return
+	
+	# Check if it's this player's turn
+	if player_index != current_turn:
+		print("DEBUG: Not your turn! Your position:", player_index, "Current turn:", current_turn)
+		return
+	
+	print("DEBUG: Submitting card play: Player ", player_index, " playing ", cards.size(), " cards")
+	
+	# If we're the host, process the play directly
+	if is_host:
+		print("DEBUG: Host processing card play directly")
+		_process_card_play(player_index, cards)
+		_sync_game_state()
+	else:
+		# Client: Send play to Firebase
+		print("DEBUG: Client sending card play to Firebase")
+		var session_mgr = get_node_or_null("/root/SessionManager")
+		if session_mgr:
+			var move_data = {
+				"action": "play_cards",
+				"player_index": player_index,
+				"cards": cards,
+				"timestamp": Time.get_unix_time_from_system()
+			}
+			session_mgr.submit_move(move_data)
+			print("DEBUG: Move submitted to session manager")
+		else:
+			print("DEBUG: Failed to find SessionManager")
+
+# Improved _process_card_play with better error handling
 func _process_card_play(player_index: int, cards: Array):
-	# Remove the cards from the player's hand
+	print("DEBUG: Processing card play from player ", player_index)
+	
+	# Safety check for valid player index
+	if player_index < 0 or player_index >= player_hands.size():
+		print("DEBUG: Invalid player index: ", player_index)
+		return
+		
+	# Check for valid cards
+	if cards.size() == 0:
+		print("DEBUG: No cards to process")
+		return
+	
+	# Check for special cards (only basic processing for now)
+	var special_effects = {}
+	var last_card = cards[cards.size() - 1]
+	
+	# Very basic special card detection
+	if last_card.value in ["2", "7", "8", "Ace", "Jack"] or (last_card.value == "King" and last_card.suit == "Hearts"):
+		special_effects["has_special"] = true
+		special_effects["card"] = last_card
+		print("DEBUG: Special card detected: ", last_card.value, " of ", last_card.suit)
+	
+	# Remove the cards from the player's hand with better error handling
 	for card in cards:
-		player_hands[player_index].erase(card)
+		var found = false
+		var card_index = -1
+		
+		# Find the card in the player's hand
+		for i in range(player_hands[player_index].size()):
+			var hand_card = player_hands[player_index][i]
+			if hand_card.value == card.value and hand_card.suit == card.suit:
+				card_index = i
+				found = true
+				break
+		
+		if found:
+			player_hands[player_index].remove_at(card_index)
+			print("DEBUG: Removed card from player's hand: ", card.value, " of ", card.suit)
+		else:
+			print("DEBUG: Card not found in player's hand: ", card.value, " of ", card.suit)
 	
 	# Handle last card and add to discard pile
-	if cards.size() > 0:
-		current_card = cards[cards.size() - 1]
-		for card in cards:
-			discard_pile.append(card)
+	current_card = last_card
+	for card in cards:
+		discard_pile.append(card)
 	
-	# Handle turn switching, etc.
-	# This is a simplified version - you'll need more logic for special cards
-	current_turn = (current_turn + game_direction) % player_hands.size()
-	if current_turn < 0:
-		current_turn = player_hands.size() - 1
-
+	print("DEBUG: Updated current card to: ", current_card.value, " of ", current_card.suit)
+	print("DEBUG: Added ", cards.size(), " cards to discard pile")
+	
+	# Emit signal to notify about the play
+	emit_signal("cards_played", player_index, cards, special_effects)
+	
+	# Basic turn switching (will be enhanced later for special cards)
+	if !("has_special" in special_effects):
+		var old_turn = current_turn
+		
+		# Convert values to integers explicitly to avoid float/int errors
+		var next_turn = int(current_turn) + int(game_direction)
+		var num_players = int(player_hands.size())
+		
+		# Handle negative values manually instead of using modulo
+		if next_turn >= num_players:
+			next_turn = next_turn - num_players
+		elif next_turn < 0:
+			next_turn = num_players + next_turn
+		
+		current_turn = next_turn
+		print("DEBUG: Turn switched from ", old_turn, " to ", current_turn)
 # Process a card draw
+# Replace the _process_card_draw function in SessionSync.gd
+
 func _process_card_draw(player_index: int):
+	print("DEBUG: Processing card draw for player", player_index)
+	
 	# Check if deck is empty
 	if deck.size() == 0:
 		_reshuffle_discard_pile()
@@ -242,11 +310,25 @@ func _process_card_draw(player_index: int):
 	if deck.size() > 0:
 		var card = deck.pop_front()
 		player_hands[player_index].append(card)
+		print("DEBUG: Drew card:", card.value, "of", card.suit, "for player", player_index)
+	else:
+		print("DEBUG: No cards left to draw")
 	
-	# Switch turns
-	current_turn = (current_turn + game_direction) % player_hands.size()
-	if current_turn < 0:
-		current_turn = player_hands.size() - 1
+	# Switch turns - using manual handling instead of modulo
+	var old_turn = current_turn
+	
+	# Convert values to integers explicitly to avoid float/int errors
+	var next_turn = int(current_turn) + int(game_direction)
+	var num_players = int(player_hands.size())
+	
+	# Handle negative values manually instead of using modulo
+	if next_turn >= num_players:
+		next_turn = next_turn - num_players
+	elif next_turn < 0:
+		next_turn = num_players + next_turn
+	
+	current_turn = next_turn
+	print("DEBUG: Turn switched from", old_turn, "to", current_turn, "after card draw")
 
 # Reshuffle the discard pile back into the deck
 func _reshuffle_discard_pile():
@@ -273,7 +355,7 @@ func _reshuffle_discard_pile():
 		deck[j] = temp
 	
 	print("Discard pile reshuffled back into deck")
-
+	
 # Sync the current game state (host only)
 func _sync_game_state():
 	if !is_host or !is_connected:
@@ -327,6 +409,9 @@ func _on_session_data_updated(session_data):
 		_process_move(move)
 
 # Process incoming game state updates
+# Replace this code in SessionSync.gd _process_game_state_update function
+
+# Process incoming game state updates
 func _process_game_state_update(game_state):
 	if !game_state or game_state.is_empty():
 		return
@@ -336,6 +421,9 @@ func _process_game_state_update(game_state):
 		return  # Skip older or same-age updates
 	
 	print("Processing game state update")
+	
+	# Keep track of the old current card to detect changes
+	var old_card = current_card
 	
 	# Update our local state
 	if "player_hands" in game_state:
@@ -351,10 +439,12 @@ func _process_game_state_update(game_state):
 		current_card = game_state.current_card
 	
 	if "current_turn" in game_state:
-		current_turn = game_state.current_turn
+		# Ensure integers when reading from Firebase
+		current_turn = int(game_state.current_turn)
 	
 	if "game_direction" in game_state:
-		game_direction = game_state.game_direction
+		# Ensure integers when reading from Firebase
+		game_direction = int(game_state.game_direction)
 	
 	if "timestamp" in game_state:
 		last_sync_time = game_state.timestamp
@@ -363,6 +453,26 @@ func _process_game_state_update(game_state):
 	if !initial_sync_complete:
 		initial_sync_complete = true
 		emit_signal("game_state_synchronized")
+		return  # Initial sync is already handled by _on_game_state_synchronized
+	
+	# If the current card has changed, we need to visualize it
+	if old_card != current_card and current_card != null:
+		print("Card change detected in game state update")
+		# For simplicity, we'll assume the previous player played the card
+		
+		# Calculate player index with explicit integer casting
+		var prev_turn = int(current_turn) - int(game_direction)
+		var num_players = int(player_hands.size())
+		
+		# Handle wraparound manually instead of using modulo
+		if prev_turn >= num_players:
+			prev_turn = prev_turn - num_players
+		elif prev_turn < 0:
+			prev_turn = num_players + prev_turn
+			
+		# Create a visual card only if we're not the one who played it
+		if prev_turn != get_local_player_position():
+			emit_signal("cards_played", prev_turn, [current_card], {})
 	
 	print("Game state updated from Firebase. Turn: ", current_turn)
 
