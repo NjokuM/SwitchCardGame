@@ -2,6 +2,7 @@ extends Node2D
 
 @export var player_position: int = 0
 @export var is_player: bool = false  # Whether this is the local player's hand
+@export var player_name: String = ""  # Add this line to fix the error
 const CARD_WIDTH = 110
 const CARD_SPACING = 35
 const DEFAULT_CARD_MOVE_SPEED = 0.33
@@ -9,6 +10,7 @@ const BACK_OF_CARD_TEXTURE = preload("res://assets/BACK.png")
 
 var hand = []
 var center_screen_x
+var is_vertical: bool = false  # Add this to support vertical hand layout
 
 func _ready() -> void:
 	center_screen_x = get_viewport().size.x / 2
@@ -37,6 +39,7 @@ func add_card(card: Node2D, speed: float):
 		print("✅ Card added:", card.value, "of", card.suit, "to Player", player_position + 1)
 	else:
 		print("❌ Error: Duplicate card detected!")
+
 func update_positions(speed):
 	# Calculate total width needed for all cards with spacing
 	var total_width = (hand.size() * (CARD_WIDTH + CARD_SPACING)) - CARD_SPACING
@@ -66,11 +69,9 @@ func remove_card(card: Node2D):
 		return true
 	
 	return false
-		
 
 # Improved function to handle card visibility
 func update_visibility(show_card_faces: bool):
-	
 	for card in hand:
 		# Cards are always visible, but we change their texture
 		card.visible = true
