@@ -18,10 +18,11 @@ config/icon="res://icon.svg"
 [autoload]
 
 GameSettings="*res://Scripts/game_settings.gd"
-NetworkManager="*res://Scripts/NetworkManager.gd"
 AuthManager="*res://Scripts/AuthManager.gd"
 SessionManager="*res://Scripts/SessionManager.gd"
 FirebaseDB="*res://Scripts/FirebaseDB.gd"
+SessionSync="*res://Scripts/SessionSync.gd"
+Deck="*res://Scripts/Deck.gd"
 
 [display]
 

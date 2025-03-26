@@ -19,6 +19,8 @@ var user_info = {
 # Authentication tokens
 var id_token = ""
 var refresh_token = ""
+var is_authenticating = false
+var is_guest = false
 
 # Signals
 signal login_succeeded(user_data)
@@ -26,6 +28,8 @@ signal login_failed(error_code, error_message)
 signal signup_succeeded(user_data)
 signal signup_failed(error_code, error_message)
 signal logout_succeeded()
+signal auth_succeeded(user_data)
+signal auth_failed(error_code, error_message)
 
 func _ready():
 	# Check if user is already logged in
@@ -33,6 +37,94 @@ func _ready():
 	if saved_token:
 		# Auto login with stored refresh token
 		refresh_login_token(saved_token)
+	else:
+		# Optional: Auto-authenticate as guest
+		# Remove comment if you want automatic guest login
+			#auto_guest_sign_in()
+		pass
+		
+		
+func anonymous_sign_in():
+	if is_authenticating:
+		return
+		
+	is_authenticating = true
+	
+	var http_request = HTTPRequest.new()
+	add_child(http_request)
+	http_request.request_completed.connect(_on_anonymous_signin_completed)
+	
+	var body = JSON.stringify({
+		"returnSecureToken": true
+	})
+	
+	var headers = ["Content-Type: application/json"]
+	var error = http_request.request(EMAIL_SIGNUP_URL + API_KEY, headers, HTTPClient.METHOD_POST, body)
+	
+	if error != OK:
+		is_authenticating = false
+		push_error("An error occurred in the HTTP request for anonymous signin")
+		emit_signal("auth_failed", "HTTP_ERROR", "Failed to send request")
+
+# Callback for anonymous sign in
+func _on_anonymous_signin_completed(result, response_code, headers, body):
+	is_authenticating = false
+	
+	var json = JSON.parse_string(body.get_string_from_utf8())
+	
+	if response_code != 200:
+		print("Anonymous Signin Error: ", json.error.message if "error" in json else "Unknown error")
+		emit_signal("auth_failed", json.error.code if "error" in json else "UNKNOWN", 
+				   json.error.message if "error" in json else "Unknown error")
+		return
+	
+	# Save user info
+	id_token = json.idToken
+	refresh_token = json.refreshToken
+	user_info.is_logged_in = true
+	user_info.user_id = json.localId
+	user_info.email = ""  # Anonymous users don't have emails
+	
+	# Generate a guest name
+	var guest_name = generate_guest_name()
+	user_info.display_name = guest_name
+	is_guest = true
+	
+	print("Anonymous sign-in successful with guest name: " + guest_name)
+	
+	# Save user data to Firebase database if needed
+	# Note: You might want to save guest info differently than regular users
+	_save_guest_to_database()
+	
+	# Emit signals
+	emit_signal("auth_succeeded", user_info)
+	emit_signal("login_succeeded", user_info)  # For backward compatibility
+
+# Generate a random guest name
+func generate_guest_name() -> String:
+	var rng = RandomNumberGenerator.new()
+	rng.randomize()
+	return "Guest" + str(rng.randi_range(1000, 9999))
+
+# Save guest user to database
+func _save_guest_to_database():
+	if !user_info.is_logged_in or user_info.user_id.is_empty():
+		push_error("Cannot save guest data: Not logged in or missing user ID")
+		return
+	
+	var guest_data = {
+		"display_name": user_info.display_name,
+		"is_guest": true,
+		"created_at": Time.get_unix_time_from_system(),
+		"last_login": Time.get_unix_time_from_system()
+	}
+	
+	# Add guest user to the database
+	_make_database_request("PUT", "/users/" + user_info.user_id, guest_data, "_on_user_data_saved")
+
+# Check if current user is a guest
+func is_guest_user() -> bool:
+	return is_logged_in() && is_guest
 
 # Helper function to make Firebase Realtime Database requests
 func _make_database_request(method: String, path: String, data = null, callback = ""):
@@ -105,7 +197,7 @@ func _update_user_last_login():
 # Sign up with email and password
 func signup_with_email(email: String, password: String, username: String = ""):
 	# Set the display name right away
-	user_info.display_name = username
+	user_info.display_name = email
 	
 	var http_request = HTTPRequest.new()
 	add_child(http_request)
