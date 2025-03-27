@@ -22,7 +22,6 @@ AuthManager="*res://Scripts/AuthManager.gd"
 SessionManager="*res://Scripts/SessionManager.gd"
 FirebaseDB="*res://Scripts/FirebaseDB.gd"
 SessionSync="*res://Scripts/SessionSync.gd"
-Deck="*res://Scripts/Deck.gd"
 
 [display]
 
