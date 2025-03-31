@@ -64,7 +64,16 @@ func remove_card(card: Node2D):
 	
 	return false
 		
-
+func remove_card_without_repositioning(card: Node2D):
+	if card in hand:
+		# Remove the card from our array and parent
+		hand.erase(card)
+		if card.get_parent() == self:
+			remove_child(card)
+		return true
+	
+	return false
+	
 # Improved function to handle card visibility
 func update_visibility(show_card_faces: bool):
 	

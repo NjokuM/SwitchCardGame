@@ -496,10 +496,20 @@ func draw_card_for_player(player_position):
 	
 	if drawn_card:
 		show_play_notification("Player " + str(player_position + 1) + " drew a card")
-		
-	# For networked games, the server will handle the turn switching through RPCs
-	# For local games, switch turn directly
-	if !is_networked_game:
+	
+	# Handle turn switching for both local and networked games
+	if is_networked_game:
+		# In networked games, the server should initiate the turn switch
+		if multiplayer.is_server():
+			# Calculate new turn based on game direction
+			var new_turn = (current_turn + game_direction) % num_players
+			if new_turn < 0:
+				new_turn = num_players - 1
+			
+			# Use the existing network_switch_turn RPC to update all clients
+			network_switch_turn.rpc(new_turn, game_direction)
+	else:
+		# For local games, switch turn directly as before
 		switch_turn()
 	
 	return drawn_card
