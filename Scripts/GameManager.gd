@@ -617,6 +617,44 @@ func can_select_card(card) -> bool:
 	var value_matches = card.value == selected_cards[0].value
 	print("Checking if value matches first selected card:", value_matches)
 	return value_matches
+	
+func can_win_next_turn() -> bool:
+	# Check if all remaining cards have the same value
+	if hands[current_turn].hand.size() <= 1:
+		return false
+	
+	# Get the top card in the slot
+	var top_card = card_slot.get_last_played_card()
+	if not top_card:
+		return false
+	
+	# Group cards by value
+	var cards_by_value = {}
+	for card in hands[current_turn].hand:
+		if not cards_by_value.has(card.value):
+			cards_by_value[card.value] = []
+		cards_by_value[card.value].append(card)
+	
+	# Check if any group contains cards that can be played and would empty the hand
+	for value in cards_by_value:
+		var cards_group = cards_by_value[value]
+		
+		# Only check groups with multiple cards
+		if cards_group.size() < 2:
+			continue
+			
+		# Check if these cards can be played
+		var can_play = false
+		for card in cards_group:
+			if card_slot.can_place_card(card):
+				can_play = true
+				break
+				
+		# If we can play these cards and they're all the cards in our hand
+		if can_play and cards_group.size() == hands[current_turn].hand.size():
+			return true
+	
+	return false
 
 func is_current_player_turn() -> bool:
 	if is_networked_game:
@@ -690,6 +728,13 @@ func play_selected_cards_internal():
 	if not card_slot.can_place_card(selected_cards[0]):
 		print("Cannot play these cards!")
 		return
+		
+	# Check if this is their second-last card and show Last Card button
+	if hands[current_turn].hand.size() == selected_cards.size() + 1:
+		show_last_card_button()
+	# New code: Also check if player could win on next turn with multiple same cards
+	elif can_win_next_turn():
+		show_last_card_button()
 	
 	# Check if this is their second-last card and show Last Card button
 	if hands[current_turn].hand.size() == selected_cards.size() + 1:
@@ -1225,6 +1270,9 @@ func network_declare_last_card(peer_id):
 	last_card_declared = true
 	show_play_notification("Player " + str(player_position + 1) + " declares Last Card!")
 	hide_last_card_button()
+	
+	
+
 
 # Add this function to show the Last Card button
 func show_last_card_button():
