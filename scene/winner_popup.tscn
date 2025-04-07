@@ -1,0 +1,127 @@
+[gd_scene load_steps=8 format=3 uid="uid://btk1v1r0piqf3"]
+
+[ext_resource type="Script" path="res://Scripts/winner_popup.gd" id="1_0xpwa"]
+[ext_resource type="FontFile" uid="uid://bdv3nir2r7fgo" path="res://assets/fonts/iImong.ttf" id="2_w3p7e"]
+[ext_resource type="Texture2D" uid="uid://clir1r7hxy07l" path="res://assets/Icons/trophy-icon.svg" id="3_yp1s1"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_efmka"]
+bg_color = Color(0, 0, 0, 0.588235)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_lqq3y"]
+bg_color = Color(0.14902, 0.27451, 0.32549, 0.882353)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+shadow_color = Color(0, 0, 0, 0.25098)
+shadow_size = 9
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_eihr3"]
+bg_color = Color(0.905882, 0.435294, 0.317647, 1)
+corner_radius_top_left = 25
+corner_radius_top_right = 25
+corner_radius_bottom_right = 25
+corner_radius_bottom_left = 25
+shadow_color = Color(0, 0, 0, 0.254902)
+shadow_size = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_nglh6"]
+bg_color = Color(0.384314, 0.627451, 0.686275, 1)
+corner_radius_top_left = 25
+corner_radius_top_right = 25
+corner_radius_bottom_right = 25
+corner_radius_bottom_left = 25
+shadow_color = Color(0, 0, 0, 0.254902)
+shadow_size = 4
+
+[node name="WinnerPopup" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_0xpwa")
+
+[node name="Overlay" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_efmka")
+
+[node name="Panel" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -300.0
+offset_top = -180.0
+offset_right = 300.0
+offset_bottom = 180.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_lqq3y")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -215.0
+offset_top = -144.5
+offset_right = 215.0
+offset_bottom = 144.5
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 30
+alignment = 1
+
+[node name="WinnerLabel" type="Label" parent="Panel/VBoxContainer"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_w3p7e")
+theme_override_font_sizes/font_size = 48
+text = "PLAYER 1 WINS!"
+horizontal_alignment = 1
+
+[node name="TrophyImage" type="TextureRect" parent="Panel/VBoxContainer"]
+custom_minimum_size = Vector2(120, 120)
+layout_mode = 2
+size_flags_horizontal = 4
+texture = ExtResource("3_yp1s1")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="ButtonContainer" type="HBoxContainer" parent="Panel/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 30
+alignment = 1
+
+[node name="PlayAgainButton" type="Button" parent="Panel/VBoxContainer/ButtonContainer"]
+custom_minimum_size = Vector2(200, 60)
+layout_mode = 2
+theme_override_colors/font_hover_color = Color(0.878431, 0.878431, 0.878431, 1)
+theme_override_colors/font_pressed_color = Color(0.878431, 0.878431, 0.878431, 1)
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 20
+theme_override_styles/normal = SubResource("StyleBoxFlat_eihr3")
+text = "PLAY AGAIN"
+
+[node name="MainMenuButton" type="Button" parent="Panel/VBoxContainer/ButtonContainer"]
+custom_minimum_size = Vector2(200, 60)
+layout_mode = 2
+theme_override_colors/font_hover_color = Color(0.878431, 0.878431, 0.878431, 1)
+theme_override_colors/font_pressed_color = Color(0.878431, 0.878431, 0.878431, 1)
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 20
+theme_override_styles/normal = SubResource("StyleBoxFlat_nglh6")
+text = "MAIN MENU"
+
+[connection signal="pressed" from="Panel/VBoxContainer/ButtonContainer/PlayAgainButton" to="." method="_on_play_again_button_pressed"]
+[connection signal="pressed" from="Panel/VBoxContainer/ButtonContainer/MainMenuButton" to="." method="_on_main_menu_button_pressed"]

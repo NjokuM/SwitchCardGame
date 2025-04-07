@@ -20,6 +20,7 @@ var defense_button_container = null
 var last_card_button = null
 var last_card_declared = false  # Track if player has declared last card
 var jack_count = 0  # Track how many Jacks were played
+var winner_popup = null
 
 # Networking variables
 var is_networked_game = false
@@ -58,9 +59,59 @@ func _ready():
 		is_networked_game = false
 		num_players = GameSettings.num_players
 		print("Local game with " + str(num_players) + " players from GameSettings")
+		
+	var popup_scene = load("res://scene/winner_popup.tscn")
+	if popup_scene:
+		winner_popup = popup_scene.instantiate()
+		add_child(winner_popup)
+		
+		# Connect signals
+		winner_popup.play_again_pressed.connect(_on_play_again)
+		winner_popup.main_menu_pressed.connect(_on_main_menu)
 	
 	print("Game started with", num_players, "players!")
 	setup_play_label()
+	start_game()
+	
+func _on_play_again():
+	# Reset the game for another round
+	reset_game()
+	
+func _on_main_menu():
+	# Return to main menu
+	get_tree().change_scene_to_file("res://scene/main_menu.tscn")
+	
+func reset_game():
+	# Clear existing hands
+	for hand in hands:
+		if hand:
+			hand.queue_free()
+	hands.clear()
+	
+	# Clear selected cards
+	selected_cards.clear()
+	
+	# Reset game variables
+	current_turn = 0
+	game_direction = 1
+	cards_to_draw = 0
+	skip_turn_switch = false
+	waiting_for_defense = false
+	waiting_for_suit_selection = false
+	last_card_declared = false
+	
+	# Reset the deck
+	if deck and deck.has_method("initialize_deck"):
+		deck.initialize_deck()
+		deck.shuffle_deck()
+	
+	# Clear the card slot
+	if card_slot:
+		var last_card = card_slot.get_last_played_card()
+		if last_card:
+			last_card.queue_free()
+	
+	# Restart the game
 	start_game()
 
 # Network setup
@@ -807,10 +858,7 @@ func play_selected_cards_internal():
 			var drawn_card = deck.draw_card(current_turn)
 		# Otherwise check for Last Card declaration
 		elif last_card_declared:
-			show_play_notification("Player " + str(current_turn + 1) + " wins!")
-			# Reset for next game
-			last_card_declared = false
-			hide_last_card_button()
+			handle_game_over(current_turn)
 		else:
 			# Player didn't declare Last Card - penalty
 			show_play_notification("Player " + str(current_turn + 1) + " didn't declare Last Card! +2 cards penalty!")
@@ -1402,3 +1450,29 @@ func _on_card_clicked(card):
 	else:
 		# Local gameplay - handle all clicks
 		select_card(card)
+		
+func handle_game_over(player_index):
+	# Show victory notification
+	show_play_notification("Player " + str(player_index + 1) + " wins!")
+	
+	# Wait a moment before showing winner popup
+	await get_tree().create_timer(1.5).timeout
+	
+	# Show the winner popup centered over the card slot
+	if winner_popup:
+		# If we have a card slot reference, center the popup over it
+		if card_slot:
+			# Convert card slot's global position to the popup's parent space
+			var popup_pos = card_slot.global_position
+			
+			# Since the popup has anchors set to full screen,
+			# we need to adjust its position using set_global_position
+			# We'll use one of its internal nodes for proper positioning
+			var panel = winner_popup.get_node("Panel")
+			if panel:
+				# The popup is already centered by its anchors - we don't need to adjust
+				# the position manually, we just need to make it visible
+				pass
+		
+		# Show the winner popup
+		winner_popup.show_winner(player_index + 1)
