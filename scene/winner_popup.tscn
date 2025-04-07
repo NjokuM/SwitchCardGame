@@ -1,11 +1,8 @@
-[gd_scene load_steps=8 format=3 uid="uid://btk1v1r0piqf3"]
+[gd_scene load_steps=7 format=3 uid="uid://btk1v1r0piqf3"]
 
 [ext_resource type="Script" path="res://Scripts/winner_popup.gd" id="1_0xpwa"]
 [ext_resource type="FontFile" uid="uid://bdv3nir2r7fgo" path="res://assets/fonts/iImong.ttf" id="2_w3p7e"]
 [ext_resource type="Texture2D" uid="uid://clir1r7hxy07l" path="res://assets/Icons/trophy-icon.svg" id="3_yp1s1"]
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_efmka"]
-bg_color = Color(0, 0, 0, 0.588235)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_lqq3y"]
 bg_color = Color(0.14902, 0.27451, 0.32549, 0.882353)
@@ -42,15 +39,6 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_0xpwa")
-
-[node name="Overlay" type="Panel" parent="."]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_efmka")
 
 [node name="Panel" type="Panel" parent="."]
 layout_mode = 1

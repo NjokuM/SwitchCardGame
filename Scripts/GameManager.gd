@@ -1456,7 +1456,7 @@ func handle_game_over(player_index):
 	show_play_notification("Player " + str(player_index + 1) + " wins!")
 	
 	# Wait a moment before showing winner popup
-	await get_tree().create_timer(1.5).timeout
+	await get_tree().create_timer(.5).timeout
 	
 	# Show the winner popup
 	if winner_popup:
