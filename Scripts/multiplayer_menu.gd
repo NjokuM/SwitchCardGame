@@ -52,6 +52,12 @@ func _on_host_button_pressed():
 	status_label.text = "Creating server..."
 	var network = get_node("/root/NetworkManager")
 	network.create_server(local_player_name)
+	
+	var local_ip = network.get_local_ip()
+	if local_ip != "":
+		status_label.text = "Server created! Local players can connect to: " + local_ip
+	else:
+		status_label.text = "Server created! Waiting for players..."
 
 func _on_join_button_pressed():
 	if player_name_input.text == "":

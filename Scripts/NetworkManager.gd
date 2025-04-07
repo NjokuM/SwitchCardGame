@@ -41,6 +41,10 @@ func create_server(player_name=""):
 		my_info.name = player_name
 	
 	my_info.position = 0  # Host is always position 0
+	 # Add this after server creation succeeds:
+	print("Server created. Players can connect using:")
+	print("- Local network: " + get_local_ip())
+	print("- Internet: Requires port forwarding of port " + str(DEFAULT_PORT))
 	
 	print("Creating server...")
 	var peer = ENetMultiplayerPeer.new()
@@ -56,8 +60,22 @@ func create_server(player_name=""):
 	emit_signal("server_created")
 	print("Server created successfully on port: " + str(DEFAULT_PORT))
 
+func get_local_ip() -> String:
+	var ip = ""
+	for address in IP.get_local_addresses():
+		# Filter out loopback, IPv6, and other non-standard IPs
+		if address.begins_with("192.168.") or address.begins_with("10.") or address.begins_with("172."):
+			ip = address
+			break
+	return ip
+	
 # Connect to a server
 func join_server(ip, player_name=""):
+	
+	if ip == "127.0.0.1" and not is_local_server_running():
+		emit_signal("game_error", "No local server running. Start a server first or use the host's IP address.")
+		return
+		
 	if player_name != "":
 		my_info.name = player_name
 	
@@ -71,6 +89,10 @@ func join_server(ip, player_name=""):
 		return
 		
 	multiplayer.multiplayer_peer = peer
+	
+func is_local_server_running() -> bool:
+	# Simple check if we already have a server
+	return multiplayer.has_multiplayer_peer() and multiplayer.is_server()
 
 # Close current connection
 func close_connection():
