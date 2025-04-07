@@ -1458,21 +1458,11 @@ func handle_game_over(player_index):
 	# Wait a moment before showing winner popup
 	await get_tree().create_timer(1.5).timeout
 	
-	# Show the winner popup centered over the card slot
+	# Show the winner popup
 	if winner_popup:
-		# If we have a card slot reference, center the popup over it
-		if card_slot:
-			# Convert card slot's global position to the popup's parent space
-			var popup_pos = card_slot.global_position
-			
-			# Since the popup has anchors set to full screen,
-			# we need to adjust its position using set_global_position
-			# We'll use one of its internal nodes for proper positioning
-			var panel = winner_popup.get_node("Panel")
-			if panel:
-				# The popup is already centered by its anchors - we don't need to adjust
-				# the position manually, we just need to make it visible
-				pass
+		# Explicitly center the popup before showing it
+		if winner_popup.has_method("_center_popup"):
+			winner_popup.call("_center_popup")
 		
 		# Show the winner popup
 		winner_popup.show_winner(player_index + 1)
