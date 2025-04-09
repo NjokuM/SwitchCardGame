@@ -48,6 +48,7 @@ func _ready():
 		_ready_network_setup()
 		# Use number of players from network
 		num_players = player_positions.size()
+		print("The number of players in this game is " + str(num_players))
 		
 		# Ensure we have at least 2 players in network mode
 		if num_players < 2:
@@ -124,11 +125,25 @@ func _ready_network_setup():
 		
 		# Map player positions from network info
 		if network.player_info.size() > 0:
-			for peer_id in network.player_info:
-				player_positions[peer_id] = network.player_info[peer_id].position
+			# Clear existing mappings
+			player_positions.clear()
 			
-			print("Networked game started. My peer ID: ", my_peer_id)
-			print("Player positions: ", player_positions)
+			# Create mappings from network data and count players
+			var actual_player_count = 0
+			for peer_id in network.player_info:
+				if network.player_info[peer_id].has("position"):
+					var pos = network.player_info[peer_id].position
+					player_positions[peer_id] = pos
+					actual_player_count += 1
+				else:
+					print("⚠️ Warning: Player", peer_id, "has no position assigned!")
+			
+			# Set the number of players based on actual player count
+			num_players = max(2, actual_player_count)  # Ensure at least 2 players
+			
+			print("Networked game started. My peer ID:", my_peer_id)
+			print("Player positions mapping:", player_positions)
+			print("Setting num_players to:", num_players)
 			
 			# Set up RPCs
 			if multiplayer:
@@ -142,7 +157,7 @@ func _ready_network_setup():
 	else:
 		print("Starting single player or local multiplayer game")
 		is_networked_game = false
-
+		
 # Add this new function to handle networked game-specific setup
 func setup_networked_game():
 	# This gets called after player positions are determined
@@ -325,8 +340,14 @@ func show_play_notification(message: String):
 		print("Play notification (no label): " + message)
 
 func start_game():
+	if is_networked_game:
+		print("Starting networked game with", num_players, "players")
+	else:
+		print("Starting local game with", num_players, "players")
+	
 	if hands.is_empty():
 		create_player_hands()
+	
 	print("Created hands. Now dealing cards...")
 	await deck.deal_initial_cards()
 	
@@ -345,7 +366,7 @@ func start_game():
 				place_card_networked.rpc(first_card.value, first_card.suit)
 	
 	print("Finished dealing cards. Starting turn for Player", current_turn + 1)
-	
+
 @rpc("authority", "call_remote", "reliable")  # Change to call_remote
 func place_card_networked(value: String, suit: String):
 	var new_card = deck.create_card_from_data(value, suit)

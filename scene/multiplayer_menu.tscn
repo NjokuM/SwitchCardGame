@@ -1,11 +1,48 @@
-[gd_scene load_steps=4 format=3 uid="uid://cckwrpdb1yle0"]
+[gd_scene load_steps=10 format=3 uid="uid://cckwrpdb1yle0"]
 
 [ext_resource type="Script" path="res://Scripts/multiplayer_menu.gd" id="1_vevgw"]
 [ext_resource type="Texture2D" uid="uid://dew66su4ank75" path="res://assets/10059426.jpg" id="2_yiw1c"]
+[ext_resource type="FontFile" uid="uid://bdv3nir2r7fgo" path="res://assets/fonts/iImong.ttf" id="3_font"]
+[ext_resource type="Texture2D" uid="uid://clir1r7hxy07l" path="res://assets/Icons/trophy-icon.svg" id="4_network_icon"]
 
-[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_dh3xn"]
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_background"]
 texture = ExtResource("2_yiw1c")
-modulate_color = Color(0.360784, 0.360784, 0.360784, 1)
+modulate_color = Color(0.1, 0.15, 0.25, 0.8)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.14902, 0.27451, 0.32549, 0.9)
+corner_radius_top_left = 20
+corner_radius_top_right = 20
+corner_radius_bottom_right = 20
+corner_radius_bottom_left = 20
+shadow_color = Color(0, 0, 0, 0.3)
+shadow_size = 10
+shadow_offset = Vector2(0, 4)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_host_button"]
+bg_color = Color(0.231373, 0.607843, 0.678431, 1)
+corner_radius_top_left = 15
+corner_radius_top_right = 15
+corner_radius_bottom_right = 15
+corner_radius_bottom_left = 15
+shadow_color = Color(0, 0, 0, 0.2)
+shadow_size = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_join_button"]
+bg_color = Color(0.878431, 0.32549, 0.309804, 1)
+corner_radius_top_left = 15
+corner_radius_top_right = 15
+corner_radius_bottom_right = 15
+corner_radius_bottom_left = 15
+shadow_color = Color(0, 0, 0, 0.2)
+shadow_size = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_back_button"]
+bg_color = Color(0.4, 0.4, 0.4, 0.5)
+corner_radius_top_left = 15
+corner_radius_top_right = 15
+corner_radius_bottom_right = 15
+corner_radius_bottom_left = 15
 
 [node name="MultiplayerMenu" type="Control"]
 layout_mode = 3
@@ -18,101 +55,168 @@ size_flags_horizontal = 3
 size_flags_vertical = 3
 script = ExtResource("1_vevgw")
 
-[node name="Panel" type="Panel" parent="."]
+[node name="Background" type="Panel" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_styles/panel = SubResource("StyleBoxTexture_dh3xn")
+theme_override_styles/panel = SubResource("StyleBoxTexture_background")
 
-[node name="VBoxContainer" type="VBoxContainer" parent="."]
+[node name="NetworkIcon" type="TextureRect" parent="."]
+modulate = Color(1, 1, 1, 0.7)
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -100.0
+offset_top = 50.0
+offset_right = 100.0
+offset_bottom = 250.0
+grow_horizontal = 2
+texture = ExtResource("4_network_icon")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="CenterPanel" type="Panel" parent="."]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -499.5
-offset_top = -372.5
-offset_right = 499.5
-offset_bottom = 372.5
+offset_left = -400.0
+offset_top = -300.0
+offset_right = 400.0
+offset_bottom = 300.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
-[node name="Label" type="Label" parent="VBoxContainer"]
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 40.0
+offset_top = 40.0
+offset_right = -40.0
+offset_bottom = -40.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 15
+
+[node name="TitleLabel" type="Label" parent="CenterPanel/VBoxContainer"]
 layout_mode = 2
-size_flags_vertical = 6
+theme_override_fonts/font = ExtResource("3_font")
 theme_override_font_sizes/font_size = 48
 text = "SW!TCH Multiplayer"
+horizontal_alignment = 1
 
-[node name="HSeparator" type="HSeparator" parent="VBoxContainer"]
+[node name="HSeparator" type="HSeparator" parent="CenterPanel/VBoxContainer"]
 layout_mode = 2
 
-[node name="PlayerNameLabel" type="Label" parent="VBoxContainer"]
+[node name="PlayerNameLabel" type="Label" parent="CenterPanel/VBoxContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "Your Name:"
+horizontal_alignment = 1
 
-[node name="PlayerNameInput" type="LineEdit" parent="VBoxContainer"]
+[node name="PlayerNameInput" type="LineEdit" parent="CenterPanel/VBoxContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
 placeholder_text = "Enter your name"
+alignment = 1
 
-[node name="IPLabel" type="Label" parent="VBoxContainer"]
+[node name="IPLabel" type="Label" parent="CenterPanel/VBoxContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
-text = "Server IP Address"
+text = "Host IP Address"
+horizontal_alignment = 1
 
-[node name="IPInput" type="LineEdit" parent="VBoxContainer"]
+[node name="IPInput" type="LineEdit" parent="CenterPanel/VBoxContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
 placeholder_text = "127.0.0.1"
+alignment = 1
 
-[node name="HostButton" type="Button" parent="VBoxContainer"]
+[node name="PortLabel" type="Label" parent="CenterPanel/VBoxContainer"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
-text = "Host Game"
+theme_override_font_sizes/font_size = 24
+text = "Port"
+horizontal_alignment = 1
 
-[node name="JoinButton" type="Button" parent="VBoxContainer"]
+[node name="PortInput" type="LineEdit" parent="CenterPanel/VBoxContainer"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
-text = "Join Game"
+theme_override_font_sizes/font_size = 24
+text = "10567"
+placeholder_text = "10567"
+alignment = 1
 
-[node name="ReadyButton" type="Button" parent="VBoxContainer"]
+[node name="ButtonContainer" type="HBoxContainer" parent="CenterPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="HostButton" type="Button" parent="CenterPanel/VBoxContainer/ButtonContainer"]
+custom_minimum_size = Vector2(180, 60)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+theme_override_styles/normal = SubResource("StyleBoxFlat_host_button")
+text = "Host"
+
+[node name="JoinButton" type="Button" parent="CenterPanel/VBoxContainer/ButtonContainer"]
+custom_minimum_size = Vector2(180, 60)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+theme_override_styles/normal = SubResource("StyleBoxFlat_join_button")
+text = "Join"
+
+[node name="StatusLabel" type="Label" parent="CenterPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Enter your name, IP, and port to connect"
+horizontal_alignment = 1
+
+[node name="PlayerListLabel" type="Label" parent="CenterPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Connected Players:"
+horizontal_alignment = 1
+
+[node name="PlayerList" type="ItemList" parent="CenterPanel/VBoxContainer"]
+custom_minimum_size = Vector2(0, 150)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 20
+allow_reselect = true
+auto_height = true
+
+[node name="ReadyButton" type="Button" parent="CenterPanel/VBoxContainer"]
+visible = false
+custom_minimum_size = Vector2(0, 60)
 layout_mode = 2
 theme_override_colors/font_pressed_color = Color(0, 0.992157, 0, 1)
 theme_override_font_sizes/font_size = 28
 text = "Ready to Play!"
 
-[node name="HSeparator2" type="HSeparator" parent="VBoxContainer"]
-layout_mode = 2
-
-[node name="StatusLabel" type="Label" parent="VBoxContainer"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "Enter your name and host or join a game"
-
-[node name="PlayerListLabel" type="Label" parent="VBoxContainer"]
-layout_mode = 2
-text = "Players:"
-
-[node name="PlayerList" type="ItemList" parent="VBoxContainer"]
-layout_mode = 2
-
-[node name="StartGameButton" type="Button" parent="VBoxContainer"]
+[node name="StartGameButton" type="Button" parent="CenterPanel/VBoxContainer"]
+visible = false
+custom_minimum_size = Vector2(0, 60)
 layout_mode = 2
 theme_override_font_sizes/font_size = 28
 text = "Start Game"
 
-[node name="BackButton" type="Button" parent="VBoxContainer"]
+[node name="BackButton" type="Button" parent="CenterPanel/VBoxContainer"]
+custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
+theme_override_styles/normal = SubResource("StyleBoxFlat_back_button")
 text = "Back to Menu"
 
-[connection signal="pressed" from="VBoxContainer/HostButton" to="." method="_on_host_button_pressed"]
-[connection signal="pressed" from="VBoxContainer/JoinButton" to="." method="_on_join_button_pressed"]
-[connection signal="pressed" from="VBoxContainer/ReadyButton" to="." method="_on_ready_button_pressed"]
-[connection signal="pressed" from="VBoxContainer/StartGameButton" to="." method="_on_start_game_button_pressed"]
-[connection signal="pressed" from="VBoxContainer/BackButton" to="." method="_on_back_button_pressed"]
+[connection signal="pressed" from="CenterPanel/VBoxContainer/ButtonContainer/HostButton" to="." method="_on_host_button_pressed"]
+[connection signal="pressed" from="CenterPanel/VBoxContainer/ButtonContainer/JoinButton" to="." method="_on_join_button_pressed"]
+[connection signal="pressed" from="CenterPanel/VBoxContainer/ReadyButton" to="." method="_on_ready_button_pressed"]
+[connection signal="pressed" from="CenterPanel/VBoxContainer/StartGameButton" to="." method="_on_start_game_button_pressed"]
+[connection signal="pressed" from="CenterPanel/VBoxContainer/BackButton" to="." method="_on_back_button_pressed"]

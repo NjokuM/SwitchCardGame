@@ -19,7 +19,7 @@ var my_info = {
 	name = "Player",  # Updated from device name or user input
 	color = Color.from_hsv(randf(), 0.8, 0.8),  # Random player color
 	ready = false,
-	position = 0  # Player position at the game table
+	position = -1  # Player position at the game table (will be assigned by server)
 }
 
 func _ready():
@@ -41,7 +41,6 @@ func create_server(player_name=""):
 		my_info.name = player_name
 	
 	my_info.position = 0  # Host is always position 0
-	 # Add this after server creation succeeds:
 	print("Server created. Players can connect using:")
 	print("- Local network: " + get_local_ip())
 	print("- Internet: Requires port forwarding of port " + str(DEFAULT_PORT))
@@ -56,7 +55,7 @@ func create_server(player_name=""):
 		return
 	
 	multiplayer.multiplayer_peer = peer
-	player_info[1] = my_info  # Server is always ID 1
+	player_info[1] = my_info.duplicate()  # Server is always ID 1
 	emit_signal("server_created")
 	print("Server created successfully on port: " + str(DEFAULT_PORT))
 
@@ -71,7 +70,6 @@ func get_local_ip() -> String:
 	
 # Connect to a server
 func join_server(ip, player_name=""):
-	
 	if ip == "127.0.0.1" and not is_local_server_running():
 		emit_signal("game_error", "No local server running. Start a server first or use the host's IP address.")
 		return
@@ -103,22 +101,47 @@ func close_connection():
 
 # Callback from SceneTree, called when a new client connects
 func _player_connected(id):
-	print("Player connected: " + str(id))
+	print("Player connected with ID: " + str(id))
 	
-	# Send my info to the new player
-	register_player(id, multiplayer.get_unique_id(), my_info)
+	if multiplayer.is_server():
+		# Server sends its player info to the new client
+		_send_player_info.rpc_id(id, 1, player_info[1])
+	
+	# On clients, we don't do anything yet - wait for server to tell us about this new player
 
 # Callback from SceneTree, called when a client disconnects
 func _player_disconnected(id):
 	print("Player disconnected: " + str(id))
+	
+	if player_info.has(id):
+		# If player had a position assigned, tell everyone
+		if player_info[id].has("position"):
+			print("Player at position " + str(player_info[id].position) + " has disconnected")
+	
+	# Remove from our list
 	player_info.erase(id)
+	
+	# If we're the server, tell everyone about this disconnection
+	if multiplayer.is_server():
+		_player_disconnected_notify.rpc(id)
+	
+	emit_signal("player_disconnected", id)
+
+# Broadcasted when a player disconnects
+@rpc("authority", "call_local")
+func _player_disconnected_notify(id):
+	# Make sure client also removes the player from their list
+	if player_info.has(id):
+		print("Removing player ID " + str(id) + " due to disconnection")
+		player_info.erase(id)
+	
 	emit_signal("player_disconnected", id)
 
 # Callback from SceneTree, only called on clients, not server
 func _connected_ok():
 	print("Connection OK")
 	var my_id = multiplayer.get_unique_id()
-	# Send my info to server
+	# Send my info to server without position - server will assign it
 	_register_player.rpc_id(1, my_id, my_info)
 	emit_signal("connection_succeeded")
 
@@ -137,43 +160,74 @@ func _server_disconnected():
 # Remote function called by clients to register themselves with the server
 @rpc("any_peer", "call_local")
 func _register_player(id, info):
-	# Store the player info locally
-	register_player(multiplayer.get_unique_id(), id, info)
-
-# Local function to register a player and send updates to others
-func register_player(receiver_id, sender_id, info):
-	# Store the player info
-	player_info[sender_id] = info
+	print("Registering player ID: " + str(id) + " with info: " + str(info))
 	
-	# Assign the position for the new player
-	if sender_id != 1:  # Skip for server as already assigned
-		var positions_used = []
-		for player_id in player_info:
-			if player_info[player_id].has("position"):
-				positions_used.append(player_info[player_id].position)
-		
-		# Find first available position
-		for pos in range(MAX_PLAYERS):
-			if not pos in positions_used:
-				player_info[sender_id].position = pos
-				break
-	
-	# If I'm the server, let everybody know about this new player
 	if multiplayer.is_server():
-		# Broadcast all existing players to the new player
-		for peer_id in player_info:
-			if peer_id != sender_id:  # Don't send own info back to the new player
-				print("Server telling player " + str(sender_id) + " about player " + str(peer_id))
-				_register_player.rpc_id(sender_id, peer_id, player_info[peer_id])
-		
-		# Also broadcast the new player to all existing players
-		for peer_id in player_info:
-			if peer_id != sender_id and peer_id != 1:  # Don't send to self or to server
-				print("Server telling player " + str(peer_id) + " about new player " + str(sender_id))
-				_register_player.rpc_id(peer_id, sender_id, player_info[sender_id])
+		# Server is responsible for assigning positions
+		if id != 1: # Skip server as it's already assigned position 0
+			# Make a copy of the player info in case we need to modify it
+			var player_data = info.duplicate()
+			
+			# Ensure no position is assigned (client shouldn't have set this)
+			if "position" in player_data:
+				player_data.position = -1
+			
+			# Find first available position by checking what's already used
+			var positions_used = []
+			for player_id in player_info:
+				if player_info[player_id].has("position") and player_info[player_id].position >= 0:
+					positions_used.append(player_info[player_id].position)
+			
+			# Assign next available position
+			for pos in range(MAX_PLAYERS):
+				if not pos in positions_used:
+					player_data.position = pos
+					break
+					
+			print("Server assigned position " + str(player_data.position) + " to player " + str(id))
+			
+			# Store the modified player info
+			player_info[id] = player_data
+			
+			# Broadcast this player to all clients (including self for confirmation)
+			_send_player_info.rpc(id, player_data)
+			
+			# Also send all existing players to the new player
+			for peer_id in player_info:
+				if peer_id != id: # Don't send their own info back
+					_send_player_info.rpc_id(id, peer_id, player_info[peer_id])
+					
+			# Emit signal for UI updates
+			emit_signal("player_connected", id, player_data)
+			
+			# After all player info is sent, broadcast a full player count update
+			# This ensures all clients have the same view of who's in the game
+			_sync_all_players.rpc()
+	else:
+		# Clients don't process this directly - all player management is done by server
+		pass
+
+# Separate RPC function to prevent recursion
+@rpc("authority", "call_local")
+func _send_player_info(id, info):
+	print("Received player info for ID " + str(id) + " with position " + str(info.position))
 	
-	print("Player registered: " + str(sender_id) + " with position " + str(player_info[sender_id].position))
-	emit_signal("player_connected", sender_id, player_info[sender_id])
+	# Store player info
+	player_info[id] = info
+	
+	# Emit signal for UI updates
+	emit_signal("player_connected", id, info)
+
+# For synchronizing all players to ensure consistent view
+@rpc("authority", "call_local")
+func _sync_all_players():
+	print("Synchronizing all players - currently have " + str(player_info.size()) + " players")
+	
+	# Just a verification call that counts players after all info has been sent
+	var player_count = player_info.size()
+	
+	# Print debug info for verification
+	debug_print_players()
 
 # Tell the server we're ready to start
 func set_player_ready(is_ready):
@@ -210,7 +264,7 @@ func _player_ready(id, is_ready):
 		# Check if all players are ready
 		check_all_ready()
 
-@rpc("authority")
+@rpc("authority", "call_local")
 func _player_ready_broadcast(id, is_ready):
 	# Update player ready status on all clients
 	if player_info.has(id):
@@ -245,6 +299,12 @@ func check_all_ready():
 func start_game():
 	if multiplayer.is_server():
 		print("Host is starting the game...")
+		
+		# Final sync before starting
+		_sync_all_players.rpc()
+		
+		# Start the game after a short delay to ensure sync completes
+		await get_tree().create_timer(0.5).timeout
 		_start_game.rpc()
 	else:
 		print("Only the host can start the game!")
@@ -253,14 +313,13 @@ func start_game():
 func _start_game():
 	print("Start game function called!")
 	
+	# Final check - recount players 
+	var actual_player_count = player_info.size()
+	print("Starting game with " + str(actual_player_count) + " players")
+	
 	# Print players for debugging
 	print("Players in game:")
-	for id in player_info:
-		var player = player_info[id]
-		if player.has("name") and player.has("position") and player.has("ready"):
-			print("Player ", player.name, " (", id, ") at position ", player.position, ", ready: ", player.ready)
-		else:
-			print("Player with ID ", id, " has incomplete info")
+	debug_print_players()
 	
 	print("Changing scene to main.tscn...")
 	# Transition to the main game scene using call_deferred for safety
@@ -273,3 +332,14 @@ func _do_scene_change():
 		print("Error changing scene: " + str(error))
 	else:
 		print("Scene change successful!")
+
+# Debug function to print player positions
+func debug_print_players():
+	print("\n===== PLAYER POSITIONS =====")
+	print("Total players: " + str(player_info.size()))
+	for id in player_info:
+		var pos = player_info[id].position if player_info[id].has("position") else "unassigned"
+		var name = player_info[id].name if player_info[id].has("name") else "Unknown"
+		var ready = player_info[id].ready if player_info[id].has("ready") else false
+		print("Player ID: " + str(id) + ", Name: " + name + ", Position: " + str(pos) + ", Ready: " + str(ready))
+	print("============================\n")

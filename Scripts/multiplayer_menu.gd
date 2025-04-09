@@ -1,17 +1,20 @@
 extends Control
 
-@onready var player_name_input = $VBoxContainer/PlayerNameInput
-@onready var ip_input = $VBoxContainer/IPInput 
-@onready var host_button = $VBoxContainer/HostButton
-@onready var join_button = $VBoxContainer/JoinButton
-@onready var status_label = $VBoxContainer/StatusLabel
-@onready var player_list = $VBoxContainer/PlayerList
-@onready var start_game_button = $VBoxContainer/StartGameButton
-@onready var ready_button = $VBoxContainer/ReadyButton
-@onready var back_button = $VBoxContainer/BackButton
+@onready var player_name_input = $CenterPanel/VBoxContainer/PlayerNameInput
+@onready var ip_input = $CenterPanel/VBoxContainer/IPInput
+@onready var port_input = $CenterPanel/VBoxContainer/PortInput
+@onready var host_button = $CenterPanel/VBoxContainer/ButtonContainer/HostButton
+@onready var join_button = $CenterPanel/VBoxContainer/ButtonContainer/JoinButton
+@onready var status_label = $CenterPanel/VBoxContainer/StatusLabel
+@onready var player_list = $CenterPanel/VBoxContainer/PlayerList
+@onready var start_game_button = $CenterPanel/VBoxContainer/StartGameButton
+@onready var ready_button = $CenterPanel/VBoxContainer/ReadyButton
+@onready var back_button = $CenterPanel/VBoxContainer/BackButton
 
 var default_ip = "127.0.0.1"
+var default_port = "10567"
 var local_player_name = ""
+var refresh_timer = null
 
 func _ready():
 	# Get the network manager singleton
@@ -31,8 +34,9 @@ func _ready():
 	else:
 		player_name_input.text = "Player " + str(randi() % 1000)
 		
-	# Set default IP
+	# Set default IP and port
 	ip_input.text = default_ip
+	port_input.text = default_port
 	
 	# Hide game control buttons initially
 	start_game_button.visible = false
@@ -40,6 +44,13 @@ func _ready():
 	
 	# Clear the player list
 	player_list.clear()
+	
+	# Set up a timer to periodically refresh the player list
+	refresh_timer = Timer.new()
+	refresh_timer.wait_time = 2.0
+	refresh_timer.timeout.connect(update_player_list)
+	add_child(refresh_timer)
+	refresh_timer.start()
 
 func _on_host_button_pressed():
 	if player_name_input.text == "":
@@ -49,7 +60,9 @@ func _on_host_button_pressed():
 	local_player_name = player_name_input.text
 	disable_lobby_controls()
 	
-	status_label.text = "Creating server..."
+	var port = int(port_input.text) if port_input.text.is_valid_int() else default_port
+	status_label.text = "Creating server on port " + str(port) + "..."
+	
 	var network = get_node("/root/NetworkManager")
 	network.create_server(local_player_name)
 	
@@ -71,11 +84,14 @@ func _on_join_button_pressed():
 	local_player_name = player_name_input.text
 	disable_lobby_controls()
 	
-	status_label.text = "Connecting to server..."
+	status_label.text = "Connecting to server at " + ip_input.text + "..."
 	var network = get_node("/root/NetworkManager")
 	network.join_server(ip_input.text, local_player_name)
 
 func _on_back_button_pressed():
+	if refresh_timer:
+		refresh_timer.stop()
+	
 	var network = get_node("/root/NetworkManager")
 	network.close_connection()
 	get_tree().change_scene_to_file("res://scene/play_menu.tscn")
@@ -105,11 +121,14 @@ func _on_start_game_button_pressed():
 	start_game_button.disabled = true
 	status_label.text = "Starting game..."
 	
+	# Debug print player info before starting
+	network.debug_print_players()
+	
 	print("Start game button pressed, calling network.start_game()")
 	network.start_game()
 	
 	# In case the RPC doesn't trigger for some reason, force scene change locally after a delay
-	await get_tree().create_timer(2.0).timeout
+	await get_tree().create_timer(3.0).timeout
 	if get_tree().current_scene.name == "MultiplayerMenu":  # If we're still in the menu
 		print("Forcing scene change after timeout")
 		get_tree().change_scene_to_file("res://scene/main.tscn")
@@ -182,12 +201,14 @@ func _on_game_error(message):
 func disable_lobby_controls():
 	player_name_input.editable = false
 	ip_input.editable = false
+	port_input.editable = false
 	host_button.disabled = true
 	join_button.disabled = true
 
 func enable_lobby_controls():
 	player_name_input.editable = true
 	ip_input.editable = true
+	port_input.editable = true
 	host_button.disabled = false
 	join_button.disabled = false
 
@@ -199,8 +220,25 @@ func update_player_list():
 	player_list.clear()
 	
 	# Add all players with their ready status
+	var sorted_players = []
+	
+	# First collect all players
 	for p_id in network.player_info:
 		var player = network.player_info[p_id]
+		sorted_players.append({"id": p_id, "info": player})
+	
+	# Sort by position
+	sorted_players.sort_custom(func(a, b): 
+		var pos_a = a.info.position if a.info.has("position") else 999
+		var pos_b = b.info.position if b.info.has("position") else 999
+		return pos_a < pos_b
+	)
+	
+	# Add to the list
+	for player_data in sorted_players:
+		var p_id = player_data.id
+		var player = player_data.info
+		
 		var ready_status = ""
 		if player.has("ready"):
 			ready_status = " ✓" if player.ready else " ..."
@@ -218,6 +256,9 @@ func update_player_list():
 			position_display = "?"
 		
 		player_list.add_item(name_display + " (Position: " + position_display + ")" + ready_status)
+	
+	# Print total players for debug
+	print("Player list updated - Total players: " + str(sorted_players.size()))
 
 # Show start button only for host when all players are ready
 func update_start_button_visibility():
@@ -239,8 +280,8 @@ func update_start_button_visibility():
 		# Show start button if we're the server and all players are ready
 		start_game_button.visible = all_ready
 		
-		# Force to visible if we're in debug mode
-		if OS.is_debug_build():
+		# Force to visible if we're in debug mode with 2+ players
+		if OS.is_debug_build() and network.player_info.size() >= 2:
 			start_game_button.visible = true
 			
 		print("Start button visibility set to: " + str(start_game_button.visible))
