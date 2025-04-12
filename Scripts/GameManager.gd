@@ -4,6 +4,8 @@ var num_players: int
 @onready var deck = $"../Deck"
 @onready var card_slot = $"../CardSlot"
 @onready var play_label = $PlayLabel
+@onready var game_status_panel = $"../GameStatusPanel"
+@onready var game_ui_labels = $"../GameUILabels"
 var hands = []
 var current_turn = 0
 var selected_cards = []
@@ -27,18 +29,7 @@ var is_networked_game = false
 var player_positions = {} # Maps peer_ids to player positions
 var my_peer_id = 0
 
-func _ready():
-	# Add draw_card action if it doesn't exist
-	if not InputMap.has_action("draw_card"):
-		InputMap.add_action("draw_card")
-		var event = InputEventKey.new()
-		event.keycode = KEY_D  # Or any key you prefer
-		InputMap.action_add_event("draw_card", event)
-	
-	# Only set fullscreen in standalone mode
-	if OS.has_feature("standalone"):
-		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
-	
+func _ready() -> void:
 	await get_tree().process_frame  
 	
 	# Check if we're coming from the network setup
@@ -72,8 +63,12 @@ func _ready():
 	
 	print("Game started with", num_players, "players!")
 	setup_play_label()
-	start_game()
 	
+	# Initialize the game status panel
+	update_game_status()
+	
+	start_game()
+
 func _on_play_again():
 	# Reset the game for another round
 	reset_game()
@@ -364,9 +359,17 @@ func start_game():
 				# Networked mode - server places locally and uses RPC for clients
 				card_slot.place_card(first_card)
 				place_card_networked.rpc(first_card.value, first_card.suit)
+				
+			# Update game status panel with initial state
+			update_game_status()
+			
+			# Initialize the UI labels
+			if game_ui_labels:
+				game_ui_labels.show_effect_message("Game starts with " + first_card.value + " of " + first_card.suit)
+				update_turn_label()
 	
 	print("Finished dealing cards. Starting turn for Player", current_turn + 1)
-
+	
 @rpc("authority", "call_remote", "reliable")  # Change to call_remote
 func place_card_networked(value: String, suit: String):
 	var new_card = deck.create_card_from_data(value, suit)
@@ -568,6 +571,9 @@ func draw_card_for_player(player_position):
 	
 	if drawn_card:
 		show_play_notification("Player " + str(player_position + 1) + " drew a card")
+		
+		# Update game status panel since deck count has changed
+		update_game_status()
 	
 	# Handle turn switching for both local and networked games
 	if is_networked_game:
@@ -793,6 +799,7 @@ func play_selected_cards():
 		play_selected_cards_internal()
 
 # Internal play_selected_cards implementation used by both local and network versions
+# Internal play_selected_cards implementation used by both local and network versions
 func play_selected_cards_internal():
 	if selected_cards.is_empty():
 		return
@@ -837,6 +844,9 @@ func play_selected_cards_internal():
 		elif selected_cards[i].value == "8" and num_players == 2:
 			eights_count += 1
 	
+	# Track card effects for the UI label
+	var effect_description = ""
+	
 	# Handle non-Ace cards and Aces before the last one
 	for i in range(selected_cards.size()):
 		var card = selected_cards[i]
@@ -846,7 +856,37 @@ func play_selected_cards_internal():
 		
 		# Only trigger special effects for the last card or non-Aces
 		if (card.value != "Ace") or (i == last_ace_index):
+			# Determine the card effect before handling it
+			var effect = get_card_effect_description(card, sevens_count)
+			if effect != "":
+				effect_description = effect
+				
 			handle_power_card_effects(card, sevens_count)
+	
+	# Get player name
+	var player_name = "Player " + str(current_turn + 1)
+	
+	# If this is a networked game, use actual player names if available
+	if is_networked_game and player_positions.has(my_peer_id):
+		var network = get_node_or_null("/root/NetworkManager")
+		if network and network.player_info.size() > 0:
+			# Find the player ID for the current player position
+			var current_player_id = -1
+			for id in player_positions:
+				if player_positions[id] == current_turn:
+					current_player_id = id
+					break
+			
+			# If we found the player ID, get their name
+			if current_player_id > 0 and network.player_info.has(current_player_id) and network.player_info[current_player_id].has("name"):
+				player_name = network.player_info[current_player_id].name
+	
+	# Update the play label with the card played information
+	if selected_cards.size() == 1:
+		game_ui_labels.update_play_label(player_name, selected_cards[0].value, selected_cards[0].suit, effect_description)
+	else:
+		# For multiple cards
+		game_ui_labels.show_effect_message(player_name + " played " + str(selected_cards.size()) + " cards: " + ", ".join(played_cards_descriptions))
 	
 	# Join the card descriptions with commas
 	var played_cards_text = ", ".join(played_cards_descriptions)
@@ -869,6 +909,7 @@ func play_selected_cards_internal():
 			extra_message = "Player " + str(current_turn + 1) + " plays again!"
 			
 		show_play_notification(extra_message)
+		
 	
 # Check for win condition
 	if hands[current_turn].hand.is_empty():
@@ -896,10 +937,70 @@ func play_selected_cards_internal():
 	
 	# Clear selection
 	selected_cards.clear()
+	update_game_status()
+	
+	# Update the turn label
+	update_turn_label()
 	
 	# Switch turns unless special condition
 	if not skip_turn_switch and not waiting_for_defense and not waiting_for_suit_selection:
 		switch_turn()
+		
+func update_turn_label():
+	if game_ui_labels:
+		var player_name = "Player " + str(current_turn + 1)
+		var is_local_player = false
+		
+		# If this is a networked game, check if it's the local player's turn
+		if is_networked_game and player_positions.has(my_peer_id):
+			var local_position = player_positions[my_peer_id]
+			is_local_player = (current_turn == local_position)
+			
+			# If we have player names available, use them
+			var network = get_node_or_null("/root/NetworkManager")
+			if network and network.player_info.size() > 0:
+				# Find the player ID for the current player position
+				var current_player_id = -1
+				for id in player_positions:
+					if player_positions[id] == current_turn:
+						current_player_id = id
+						break
+				
+				# If we found the player ID, get their name
+				if current_player_id > 0 and network.player_info.has(current_player_id) and network.player_info[current_player_id].has("name"):
+					player_name = network.player_info[current_player_id].name
+		
+		# In local mode, all players are considered "local" for UI purposes
+		if not is_networked_game:
+			is_local_player = true
+		
+		# Update the turn label
+		game_ui_labels.update_turn_label(player_name, is_local_player)
+
+func get_card_effect_description(card, sevens_count = 0) -> String:
+	match card.value:
+		"2":
+			return "Next player draws 2 cards"
+		"7":
+			if sevens_count > 0:
+				return "Skipping " + str(sevens_count) + " player(s)"
+			else:
+				return "Skipping next player"
+		"8":
+			if num_players == 2:
+				return "Player gets another turn"
+			else:
+				return "Game direction reversed"
+		"Ace":
+			return "Changing suit"
+		"Jack":
+			return "Player gets another turn"
+		"King":
+			if card.suit == "Hearts":
+				return "Next player draws 5 cards"
+	
+	# No special effect
+	return ""
 		
 func handle_power_card_effects(card, sevens_count = 0):
 	match card.value:
@@ -955,6 +1056,9 @@ func handle_power_card_effects(card, sevens_count = 0):
 				# In 3+ player mode, reverse direction
 				game_direction *= -1
 				show_play_notification("Game direction reversed!")
+				
+				# Update game status panel to show new direction
+				update_game_status()
 				
 		"Ace":
 			# Prompt for suit selection
@@ -1308,17 +1412,67 @@ func select_suit_internal(suit):
 	
 	# Update the Ace card to show chosen suit
 	var ace_card = card_slot.get_last_played_card()
-	if ace_card and ace_card.has_method("set_chosen_suit"):
-		ace_card.set_chosen_suit(suit)
+	if ace_card:
+		if ace_card.has_method("set_chosen_suit"):
+			ace_card.set_chosen_suit(suit)
+		else:
+			# Fallback if method doesn't exist - set property directly
+			ace_card.chosen_suit = suit
+			print("Card suit changed to:", suit)
 	
 	# Remove the suit selection UI
 	if has_node("SuitButtons"):
 		get_node("SuitButtons").queue_free()
 	
+	# Update the game status panel
+	update_game_status()
+	
+	# Update the UI labels
+	if game_ui_labels:
+		var player_name = "Player " + str(current_turn + 1)
+		
+		# If we're in a networked game, try to get the actual player name
+		if is_networked_game:
+			var network = get_node_or_null("/root/NetworkManager")
+			if network and network.player_info.size() > 0:
+				# Find the player ID for this position
+				var player_id = -1
+				for id in player_positions:
+					if player_positions[id] == current_turn:
+						player_id = id
+						break
+				
+				if player_id > 0 and network.player_info.has(player_id) and network.player_info[player_id].has("name"):
+					player_name = network.player_info[player_id].name
+		
+		game_ui_labels.show_effect_message(player_name + " changed suit to " + suit)
+	
 	# Reset state and continue game
 	waiting_for_suit_selection = false
 	skip_turn_switch = false
 	switch_turn()
+
+func update_game_status():
+	if game_status_panel:
+		# Update current suit
+		var current_suit = "None"
+		var last_card = card_slot.get_last_played_card()
+		if last_card:
+			if last_card.value == "Ace" and "chosen_suit" in last_card and last_card.chosen_suit != "":
+				current_suit = last_card.chosen_suit
+			else:
+				current_suit = last_card.suit
+		
+		# Update direction (1 is clockwise, -1 is counter-clockwise)
+		var is_clockwise = game_direction == 1
+		
+		# Update deck count
+		var cards_in_deck = deck.get_deck_size()
+		
+		# Send updates to the panel
+		game_status_panel.update_suit(current_suit)
+		game_status_panel.update_direction(is_clockwise)
+		game_status_panel.update_deck_count(cards_in_deck)
 
 # Network version of last card declaration
 @rpc("any_peer", "call_local")
@@ -1340,9 +1494,6 @@ func network_declare_last_card(peer_id):
 	show_play_notification("Player " + str(player_position + 1) + " declares Last Card!")
 	hide_last_card_button()
 	
-	
-
-
 # Add this function to show the Last Card button
 func show_last_card_button():
 	# Only show to the current player in networked games
@@ -1413,6 +1564,12 @@ func network_switch_turn(new_turn, new_direction):
 	
 	# Update hand visibility
 	update_hand_visibility()
+	
+	# Update game status panel
+	update_game_status()
+	
+	# Update the turn label
+	update_turn_label()
 
 func switch_turn():
 	# Skip turn switching if still waiting for player input
@@ -1432,7 +1589,16 @@ func switch_turn():
 				print("Player " + str(next_player + 1) + " drew a card")
 		
 		show_play_notification("Player " + str(next_player + 1) + " drew " + str(cards_to_draw) + " cards!")
+		
+		# Update the UI with the draw information
+		if game_ui_labels:
+			var player_name = "Player " + str(next_player + 1)
+			game_ui_labels.show_effect_message(player_name + " drew " + str(cards_to_draw) + " cards")
+		
 		cards_to_draw = 0
+		
+		# Update game status since deck count has changed
+		update_game_status()
 	
 	# Update current turn based on game direction
 	var new_turn = (current_turn + game_direction) % num_players
@@ -1448,6 +1614,12 @@ func switch_turn():
 		print("It's now Player", current_turn + 1, "'s turn!")
 		update_hand_visibility()
 		
+		# Update game status panel
+		update_game_status()
+		
+		# Update the turn label
+		update_turn_label()
+
 func _on_card_clicked(card):
 	# In networked games, only process clicks for cards in the local player's hand
 	if is_networked_game:

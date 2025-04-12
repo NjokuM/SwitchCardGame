@@ -1,0 +1,91 @@
+[gd_scene load_steps=3 format=3 uid="uid://bb105wm6xtwk8"]
+
+[ext_resource type="Script" path="res://Scripts/game_status_panel.gd" id="1_ujn6m"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_3e7gm"]
+bg_color = Color(0.14902, 0.27451, 0.32549, 0.8)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+shadow_color = Color(0, 0, 0, 0.25098)
+shadow_size = 4
+
+[node name="GameStatusPanel" type="Control"]
+layout_mode = 3
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -230.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = 150.0
+grow_horizontal = 0
+script = ExtResource("1_ujn6m")
+
+[node name="Panel" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_3e7gm")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 10
+
+[node name="TitleLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "GAME STATUS"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="SuitContainer" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="VBoxContainer/SuitContainer"]
+layout_mode = 2
+text = "Current Suit:"
+
+[node name="SuitLabel" type="Label" parent="VBoxContainer/SuitContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_alignment = 2
+
+[node name="DirectionContainer" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="VBoxContainer/DirectionContainer"]
+layout_mode = 2
+text = "Direction:"
+
+[node name="DirectionLabel" type="Label" parent="VBoxContainer/DirectionContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_alignment = 2
+
+[node name="DeckContainer" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="VBoxContainer/DeckContainer"]
+layout_mode = 2
+text = "Cards in Deck:"
+
+[node name="DeckCountLabel" type="Label" parent="VBoxContainer/DeckContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_alignment = 2
