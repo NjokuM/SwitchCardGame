@@ -1,5 +1,6 @@
-[gd_scene load_steps=10 format=3 uid="uid://binitu8i86r26"]
+[gd_scene load_steps=11 format=3 uid="uid://binitu8i86r26"]
 
+[ext_resource type="PackedScene" uid="uid://ch5yxtsll11y0" path="res://scene/game_background.tscn" id="1_6wrt2"]
 [ext_resource type="PackedScene" uid="uid://mcgxabep2bnv" path="res://scene/CardSlot.tscn" id="2_su65h"]
 [ext_resource type="Script" path="res://Scripts/Deck.gd" id="4_um34a"]
 [ext_resource type="Texture2D" uid="uid://jwtumo7au0fm" path="res://assets/BACK.png" id="5_wbstm"]
@@ -14,6 +15,8 @@
 size = Vector2(250, 364)
 
 [node name="Main" type="Node2D"]
+
+[node name="GameBackground" parent="." instance=ExtResource("1_6wrt2")]
 
 [node name="CardManager" type="Node2D" parent="."]
 script = SubResource("GDScript_aulfc")
