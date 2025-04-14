@@ -1,0 +1,215 @@
+[gd_scene load_steps=5 format=3 uid="uid://cu7qr1xvgip5p"]
+
+[ext_resource type="Script" path="res://Scripts/rules_popup.gd" id="1_m0vpx"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_popup_bg"]
+bg_color = Color(0.14902, 0.27451, 0.32549, 0.95)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(0.905882, 0.435294, 0.317647, 1)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+shadow_color = Color(0, 0, 0, 0.4)
+shadow_size = 8
+shadow_offset = Vector2(0, 4)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hover"]
+bg_color = Color(0.831373, 0.34902, 0.227451, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+shadow_color = Color(0, 0, 0, 0.25098)
+shadow_size = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_close_button"]
+bg_color = Color(0.905882, 0.435294, 0.317647, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+shadow_color = Color(0, 0, 0, 0.25098)
+shadow_size = 2
+
+[node name="RulesPopup" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_m0vpx")
+
+[node name="BackgroundPanel" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -500.0
+offset_top = -350.0
+offset_right = 500.0
+offset_bottom = 350.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_popup_bg")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="BackgroundPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 10
+
+[node name="Label" type="Label" parent="BackgroundPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.6)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_constants/shadow_outline_size = 1
+theme_override_font_sizes/font_size = 36
+text = "SW!TCH - Game Rules"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="BackgroundPanel/VBoxContainer"]
+layout_mode = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="BackgroundPanel/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="RulesContent" type="VBoxContainer" parent="BackgroundPanel/VBoxContainer/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 20
+
+[node name="BasicRules" type="VBoxContainer" parent="BackgroundPanel/VBoxContainer/ScrollContainer/RulesContent"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SectionTitle" type="Label" parent="BackgroundPanel/VBoxContainer/ScrollContainer/RulesContent/BasicRules"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.905882, 0.435294, 0.317647, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.6)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 28
+text = "Basic Rules"
+
+[node name="RulesText" type="RichTextLabel" parent="BackgroundPanel/VBoxContainer/ScrollContainer/RulesContent/BasicRules"]
+layout_mode = 2
+theme_override_colors/default_color = Color(1, 1, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.392157)
+theme_override_constants/shadow_offset_y = 1
+theme_override_constants/shadow_offset_x = 1
+theme_override_font_sizes/normal_font_size = 20
+bbcode_enabled = true
+text = "• The goal of Switch is to be the first player to discard all your cards.
+
+• Each player is dealt 7 cards from a standard 52-card deck.
+
+• On your turn, you must play a card that matches either the suit or the value of the top card on the discard pile.
+
+• If you can't play any card, you must draw a card from the deck and skip your turn.
+
+• The player who gets rid of all their cards first wins the game."
+fit_content = true
+autowrap_mode = 2
+
+[node name="PowerCards" type="VBoxContainer" parent="BackgroundPanel/VBoxContainer/ScrollContainer/RulesContent"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SectionTitle" type="Label" parent="BackgroundPanel/VBoxContainer/ScrollContainer/RulesContent/PowerCards"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.905882, 0.435294, 0.317647, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.6)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 28
+text = "Power Cards"
+
+[node name="PowerCardsText" type="RichTextLabel" parent="BackgroundPanel/VBoxContainer/ScrollContainer/RulesContent/PowerCards"]
+layout_mode = 2
+theme_override_colors/default_color = Color(1, 1, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.392157)
+theme_override_constants/shadow_offset_y = 1
+theme_override_constants/shadow_offset_x = 1
+theme_override_font_sizes/normal_font_size = 20
+bbcode_enabled = true
+text = "[b]2 (Any Suit):[/b] The next player must draw 2 cards. If they have a 2, they can play it instead, making the following player draw 4 cards. This chain can continue until a player without a 2 has to draw all accumulated cards.
+
+[b]7 (Any Suit):[/b] Skips the next player's turn.
+
+[b]8 (Any Suit):[/b] Reverses the direction of play. In 2-player games, this works like the 7 (skip/play again).
+
+[b]Ace (Any Suit):[/b] Can be played on any card. The player who plays it chooses which suit the next player must match.
+
+[b]Jack (Any Suit):[/b] Allows the player to play another card immediately.
+
+[b]King of Hearts:[/b] The next player must draw 5 cards.
+
+[b]5 of Hearts:[/b] Cancels out the effect of the King of Hearts if played immediately after.
+
+[b]2 of Hearts:[/b] When played after a King of Hearts, changes the penalty from 5 to 7 cards."
+fit_content = true
+autowrap_mode = 2
+
+[node name="SpecialRules" type="VBoxContainer" parent="BackgroundPanel/VBoxContainer/ScrollContainer/RulesContent"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SectionTitle" type="Label" parent="BackgroundPanel/VBoxContainer/ScrollContainer/RulesContent/SpecialRules"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.905882, 0.435294, 0.317647, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.6)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 28
+text = "Special Rules"
+
+[node name="SpecialRulesText" type="RichTextLabel" parent="BackgroundPanel/VBoxContainer/ScrollContainer/RulesContent/SpecialRules"]
+layout_mode = 2
+theme_override_colors/default_color = Color(1, 1, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.392157)
+theme_override_constants/shadow_offset_y = 1
+theme_override_constants/shadow_offset_x = 1
+theme_override_font_sizes/normal_font_size = 20
+bbcode_enabled = true
+text = "[b]\"Last Card\" Rule:[/b] When you have only one card left, you must declare \"Last Card\" before your turn ends. If you forget, you must draw 2 penalty cards.
+
+[b]Multiple Cards:[/b] You can play multiple cards of the same value in a single turn.
+
+[b]Reshuffle:[/b] If the draw pile is empty, the discard pile (except for the top card) is shuffled to form a new draw pile."
+fit_content = true
+autowrap_mode = 2
+
+[node name="CloseButtonContainer" type="HBoxContainer" parent="BackgroundPanel/VBoxContainer"]
+layout_mode = 2
+alignment = 1
+
+[node name="CloseButton" type="Button" parent="BackgroundPanel/VBoxContainer/CloseButtonContainer"]
+custom_minimum_size = Vector2(200, 50)
+layout_mode = 2
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(1, 1, 1, 1)
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 22
+theme_override_styles/hover = SubResource("StyleBoxFlat_hover")
+theme_override_styles/normal = SubResource("StyleBoxFlat_close_button")
+text = "Close"
+
+[connection signal="pressed" from="BackgroundPanel/VBoxContainer/CloseButtonContainer/CloseButton" to="." method="_on_close_button_pressed"]

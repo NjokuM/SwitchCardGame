@@ -17,3 +17,6 @@ func _on_four_button_pressed() -> void:
 
 func _load_main_scene():
 	get_tree().change_scene_to_file("res://scene/main.tscn")
+	
+func _on_back_button_pressed() -> void:
+	get_tree().change_scene_to_file("res://scene/play_menu.tscn")

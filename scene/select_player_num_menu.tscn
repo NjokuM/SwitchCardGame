@@ -1,15 +1,51 @@
-[gd_scene load_steps=8 format=3 uid="uid://1igcjcf753rb"]
+[gd_scene load_steps=12 format=3 uid="uid://1igcjcf753rb"]
 
 [ext_resource type="Script" path="res://Scripts/select_player_number_menu.gd" id="1_jtke5"]
-[ext_resource type="Texture2D" uid="uid://dew66su4ank75" path="res://assets/10059426.jpg" id="2_6jhr1"]
+[ext_resource type="Texture2D" uid="uid://ctge8h52fbvl7" path="res://assets/menu_background.svg" id="2_jsd4p"]
 [ext_resource type="FontFile" uid="uid://bdv3nir2r7fgo" path="res://assets/fonts/iImong.ttf" id="3_j8wd8"]
 [ext_resource type="Texture2D" uid="uid://dwf2mbts3q6r7" path="res://assets/Icons/people-2.png" id="4_enrx8"]
 [ext_resource type="Texture2D" uid="uid://dydghrphiouhu" path="res://assets/Icons/multiple-users-silhouette.png" id="5_n2qpi"]
 [ext_resource type="Texture2D" uid="uid://ccov30k4vrlpp" path="res://assets/Icons/people.png" id="6_18awi"]
 
-[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_o2gwi"]
-texture = ExtResource("2_6jhr1")
-modulate_color = Color(0.36, 0.36, 0.36, 1)
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_menu_bg"]
+texture = ExtResource("2_jsd4p")
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_player_button_hover"]
+bg_color = Color(0.921569, 0.921569, 0.921569, 1)
+corner_radius_top_left = 15
+corner_radius_top_right = 15
+corner_radius_bottom_right = 15
+corner_radius_bottom_left = 15
+shadow_color = Color(0, 0, 0, 0.25098)
+shadow_size = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_player_button_pressed"]
+bg_color = Color(0.843137, 0.843137, 0.843137, 1)
+corner_radius_top_left = 15
+corner_radius_top_right = 15
+corner_radius_bottom_right = 15
+corner_radius_bottom_left = 15
+shadow_color = Color(0, 0, 0, 0.25098)
+shadow_size = 2
+shadow_offset = Vector2(0, 2)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_player_button_normal"]
+bg_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 15
+corner_radius_top_right = 15
+corner_radius_bottom_right = 15
+corner_radius_bottom_left = 15
+shadow_color = Color(0, 0, 0, 0.25098)
+shadow_size = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_back_button"]
+bg_color = Color(0.905882, 0.435294, 0.317647, 1)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+shadow_size = 8
+shadow_offset = Vector2(0, 3)
 
 [node name="select_player_number_menu" type="Control"]
 layout_mode = 3
@@ -20,14 +56,14 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_jtke5")
 
-[node name="Panel2" type="Panel" parent="."]
+[node name="Background" type="Panel" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_styles/panel = SubResource("StyleBoxTexture_o2gwi")
+theme_override_styles/panel = SubResource("StyleBoxTexture_menu_bg")
 
 [node name="Label" type="Label" parent="."]
 layout_mode = 1
@@ -63,9 +99,26 @@ offset_top = -149.0
 offset_right = 223.12
 offset_bottom = 149.0
 grow_vertical = 2
+theme_override_styles/hover = SubResource("StyleBoxFlat_player_button_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_player_button_pressed")
+theme_override_styles/normal = SubResource("StyleBoxFlat_player_button_normal")
 icon = ExtResource("4_enrx8")
 icon_alignment = 1
 expand_icon = true
+
+[node name="Label" type="Label" parent="Two_Button"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -40.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.14902, 0.27451, 0.32549, 1)
+theme_override_font_sizes/font_size = 28
+text = "2 Players"
+horizontal_alignment = 1
 
 [node name="Three_Button" type="Button" parent="."]
 layout_mode = 1
@@ -81,12 +134,26 @@ offset_bottom = 156.52
 grow_horizontal = 0
 grow_vertical = 2
 mouse_default_cursor_shape = 2
-theme_override_colors/icon_pressed_color = Color(1, 1, 1, 1)
-theme_override_colors/icon_hover_color = Color(0.444843, 0.444843, 0.444843, 1)
-theme_override_font_sizes/font_size = 150
+theme_override_styles/hover = SubResource("StyleBoxFlat_player_button_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_player_button_pressed")
+theme_override_styles/normal = SubResource("StyleBoxFlat_player_button_normal")
 icon = ExtResource("5_n2qpi")
 icon_alignment = 1
 expand_icon = true
+
+[node name="Label" type="Label" parent="Three_Button"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -40.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.14902, 0.27451, 0.32549, 1)
+theme_override_font_sizes/font_size = 28
+text = "3 Players"
+horizontal_alignment = 1
 
 [node name="Four_Button" type="Button" parent="."]
 layout_mode = 1
@@ -101,11 +168,46 @@ offset_right = 246.0
 offset_bottom = 142.6
 grow_horizontal = 2
 grow_vertical = 0
-theme_override_font_sizes/font_size = 150
+theme_override_styles/hover = SubResource("StyleBoxFlat_player_button_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_player_button_pressed")
+theme_override_styles/normal = SubResource("StyleBoxFlat_player_button_normal")
 icon = ExtResource("6_18awi")
 icon_alignment = 1
 expand_icon = true
 
+[node name="Label" type="Label" parent="Four_Button"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -40.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.14902, 0.27451, 0.32549, 1)
+theme_override_font_sizes/font_size = 28
+text = "4 Players"
+horizontal_alignment = 1
+
+[node name="BackButton" type="Button" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.098
+anchor_top = 0.906
+anchor_right = 0.238
+anchor_bottom = 0.963
+offset_left = -0.160004
+offset_top = 0.119934
+offset_right = 0.23999
+offset_bottom = -0.0400391
+theme_override_colors/font_hover_color = Color(0.878431, 0.878431, 0.878431, 1)
+theme_override_colors/font_pressed_color = Color(0.878431, 0.878431, 0.878431, 1)
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 30
+theme_override_styles/normal = SubResource("StyleBoxFlat_back_button")
+text = "BACK"
+
 [connection signal="pressed" from="Two_Button" to="." method="_on_two_button_pressed"]
 [connection signal="pressed" from="Three_Button" to="." method="_on_three_button_pressed"]
 [connection signal="pressed" from="Four_Button" to="." method="_on_four_button_pressed"]
+[connection signal="pressed" from="BackButton" to="." method="_on_back_button_pressed"]

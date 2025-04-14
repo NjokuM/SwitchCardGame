@@ -1,12 +1,11 @@
-[gd_scene load_steps=9 format=3 uid="uid://bs38gxu4emt2m"]
+[gd_scene load_steps=10 format=3 uid="uid://bs38gxu4emt2m"]
 
 [ext_resource type="Script" path="res://Scripts/play_menu.gd" id="1_7hp0m"]
-[ext_resource type="Texture2D" uid="uid://dew66su4ank75" path="res://assets/10059426.jpg" id="2_4dap7"]
+[ext_resource type="Texture2D" uid="uid://ctge8h52fbvl7" path="res://assets/menu_background.svg" id="2_7n43q"]
 [ext_resource type="FontFile" uid="uid://bdv3nir2r7fgo" path="res://assets/fonts/iImong.ttf" id="3_7303j"]
 
-[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_ruf3j"]
-texture = ExtResource("2_4dap7")
-modulate_color = Color(0.36, 0.36, 0.36, 1)
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_menu_bg"]
+texture = ExtResource("2_7n43q")
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_roel2"]
 
@@ -37,6 +36,15 @@ corner_radius_bottom_left = 16
 shadow_size = 15
 shadow_offset = Vector2(0, 3.41)
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_back_button"]
+bg_color = Color(0.905882, 0.435294, 0.317647, 1)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+shadow_size = 8
+shadow_offset = Vector2(0, 3)
+
 [node name="PlayMenu" type="Control"]
 layout_mode = 3
 anchors_preset = 15
@@ -46,14 +54,14 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_7hp0m")
 
-[node name="Panel2" type="Panel" parent="."]
+[node name="Background" type="Panel" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_styles/panel = SubResource("StyleBoxTexture_ruf3j")
+theme_override_styles/panel = SubResource("StyleBoxTexture_menu_bg")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="."]
 layout_mode = 1
@@ -134,6 +142,25 @@ text = "Select the Game Mode You would like to play"
 horizontal_alignment = 1
 vertical_alignment = 1
 
+[node name="BackButton" type="Button" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.098
+anchor_top = 0.906
+anchor_right = 0.238
+anchor_bottom = 0.963
+offset_left = -0.160004
+offset_top = 0.119934
+offset_right = 0.23999
+offset_bottom = -0.0400391
+theme_override_colors/font_hover_color = Color(0.878431, 0.878431, 0.878431, 1)
+theme_override_colors/font_pressed_color = Color(0.878431, 0.878431, 0.878431, 1)
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 30
+theme_override_styles/normal = SubResource("StyleBoxFlat_back_button")
+text = "BACK"
+
 [connection signal="pressed" from="VBoxContainer/Button" to="." method="_on_multiplayer_button_pressed"]
 [connection signal="pressed" from="VBoxContainer/Button2" to="." method="_on_local_button_pressed"]
 [connection signal="pressed" from="VBoxContainer/Button3" to="." method="_on_play_cpu_button_pressed"]
+[connection signal="pressed" from="BackButton" to="." method="_on_back_button_pressed"]

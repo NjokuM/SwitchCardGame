@@ -1,13 +1,12 @@
 [gd_scene load_steps=10 format=3 uid="uid://cckwrpdb1yle0"]
 
 [ext_resource type="Script" path="res://Scripts/multiplayer_menu.gd" id="1_vevgw"]
-[ext_resource type="Texture2D" uid="uid://dew66su4ank75" path="res://assets/10059426.jpg" id="2_yiw1c"]
+[ext_resource type="Texture2D" uid="uid://ctge8h52fbvl7" path="res://assets/menu_background.svg" id="2_5dqb3"]
 [ext_resource type="FontFile" uid="uid://bdv3nir2r7fgo" path="res://assets/fonts/iImong.ttf" id="3_font"]
 [ext_resource type="Texture2D" uid="uid://clir1r7hxy07l" path="res://assets/Icons/trophy-icon.svg" id="4_network_icon"]
 
 [sub_resource type="StyleBoxTexture" id="StyleBoxTexture_background"]
-texture = ExtResource("2_yiw1c")
-modulate_color = Color(0.1, 0.15, 0.25, 0.8)
+texture = ExtResource("2_5dqb3")
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
 bg_color = Color(0.14902, 0.27451, 0.32549, 0.9)
@@ -38,11 +37,13 @@ shadow_color = Color(0, 0, 0, 0.2)
 shadow_size = 4
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_back_button"]
-bg_color = Color(0.4, 0.4, 0.4, 0.5)
+bg_color = Color(0.905882, 0.435294, 0.317647, 1)
 corner_radius_top_left = 15
 corner_radius_top_right = 15
 corner_radius_bottom_right = 15
 corner_radius_bottom_left = 15
+shadow_color = Color(0, 0, 0, 0.2)
+shadow_size = 4
 
 [node name="MultiplayerMenu" type="Control"]
 layout_mode = 3
@@ -211,6 +212,9 @@ text = "Start Game"
 [node name="BackButton" type="Button" parent="CenterPanel/VBoxContainer"]
 custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
+theme_override_colors/font_hover_color = Color(0.878431, 0.878431, 0.878431, 1)
+theme_override_colors/font_pressed_color = Color(0.878431, 0.878431, 0.878431, 1)
+theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 24
 theme_override_styles/normal = SubResource("StyleBoxFlat_back_button")
 text = "Back to Menu"
