@@ -1,25 +1,11 @@
-[gd_scene load_steps=9 format=3 uid="uid://xnnyq03fmxlp"]
+[gd_scene load_steps=10 format=3 uid="uid://xnnyq03fmxlp"]
 
-[ext_resource type="Texture2D" uid="uid://dew66su4ank75" path="res://assets/10059426.jpg" id="2_f2jha"]
+[ext_resource type="Script" path="res://Scripts/main_menu.gd" id="1_u7gnd"]
+[ext_resource type="Texture2D" uid="uid://ctge8h52fbvl7" path="res://assets/menu_background.svg" id="2_wxnif"]
 [ext_resource type="FontFile" uid="uid://bdv3nir2r7fgo" path="res://assets/fonts/iImong.ttf" id="3_5vk85"]
 
-[sub_resource type="GDScript" id="GDScript_xlch1"]
-script/source = "extends Control
-
-func _on_play_pressed() -> void:
-	get_tree().change_scene_to_file(\"res://scene/play_menu.tscn\")
-	
-func _on_options_pressed() -> void:
-	print(\"Settings pressed\")
-	
-func _on_exit_pressed() -> void:
-	get_tree().quit()
-	
-"
-
-[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_cvvnd"]
-texture = ExtResource("2_f2jha")
-modulate_color = Color(0.36, 0.36, 0.36, 1)
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_menu_bg"]
+texture = ExtResource("2_wxnif")
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_10hki"]
 
@@ -50,6 +36,15 @@ corner_radius_bottom_left = 16
 shadow_size = 15
 shadow_offset = Vector2(0, 3.41)
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_exit_button"]
+bg_color = Color(0.905882, 0.435294, 0.317647, 1)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+shadow_size = 15
+shadow_offset = Vector2(0, 3.41)
+
 [node name="MainMenu" type="Control"]
 layout_mode = 3
 anchors_preset = 15
@@ -57,16 +52,16 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = SubResource("GDScript_xlch1")
+script = ExtResource("1_u7gnd")
 
-[node name="Panel" type="Panel" parent="."]
+[node name="Background" type="Panel" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_styles/panel = SubResource("StyleBoxTexture_cvvnd")
+theme_override_styles/panel = SubResource("StyleBoxTexture_menu_bg")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="."]
 layout_mode = 1
@@ -109,20 +104,20 @@ theme_override_styles/focus = SubResource("StyleBoxEmpty_10hki")
 theme_override_styles/hover = SubResource("StyleBoxFlat_1y1xf")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_m4dpl")
 theme_override_styles/normal = SubResource("StyleBoxFlat_w4l5y")
-text = "Option"
+text = "Rules"
 
 [node name="Button3" type="Button" parent="VBoxContainer"]
 layout_mode = 2
 size_flags_vertical = 3
-theme_override_colors/font_hover_color = Color(0, 0, 0, 1)
-theme_override_colors/font_pressed_color = Color(0, 0, 0, 1)
-theme_override_colors/font_focus_color = Color(0, 0, 0, 1)
-theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(1, 1, 1, 1)
+theme_override_colors/font_focus_color = Color(1, 1, 1, 1)
+theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 60
 theme_override_styles/focus = SubResource("StyleBoxEmpty_10hki")
-theme_override_styles/hover = SubResource("StyleBoxFlat_1y1xf")
+theme_override_styles/hover = SubResource("StyleBoxFlat_m4dpl")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_m4dpl")
-theme_override_styles/normal = SubResource("StyleBoxFlat_w4l5y")
+theme_override_styles/normal = SubResource("StyleBoxFlat_exit_button")
 text = "Exit"
 
 [node name="Label" type="Label" parent="."]
