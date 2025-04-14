@@ -1021,6 +1021,7 @@ func handle_power_card_effects(card, sevens_count = 0):
 			else:
 				cards_to_draw = 2
 				print("Player ", next_player_to_draw + 1, " will draw ", cards_to_draw, " cards")
+				switch_turn()
 			
 		"7":
 			# Handle multiple 7s correctly across all player counts
@@ -1083,6 +1084,7 @@ func handle_power_card_effects(card, sevens_count = 0):
 				else:
 					cards_to_draw = 5
 					print("Player ", next_player_to_draw + 1, " will draw ", cards_to_draw, " cards")
+					switch_turn()
 				
 		"5":
 			if card.suit == "Hearts" and cards_to_draw == 5:
@@ -1093,6 +1095,7 @@ func handle_power_card_effects(card, sevens_count = 0):
 			if card.suit == "Hearts" and cards_to_draw == 5:
 				cards_to_draw = 7  # Convert 5 to 7 cards
 				show_play_notification("Pick up increased to 7 cards!")
+				switch_turn()
 
 # Add this function to check if a player has a specific card
 func has_card_in_hand(player_index, value, suit = null):
@@ -1278,12 +1281,19 @@ func defend_against_attack(card = null):
 				waiting_for_defense = false
 				current_turn = next_player_to_draw
 				
-				# Apply card drawing
-				for i in range(cards_to_draw):
-					var drawn_card = deck.draw_card(current_turn)
+				# ONLY the server should draw cards
+				if not is_networked_game or multiplayer.is_server():
+					# Apply card drawing
+					for i in range(cards_to_draw):
+						var drawn_card = deck.draw_card(current_turn)
 				
 				cards_to_draw = 0
-				switch_turn()
+				
+				# Synchronize turn change in networked games
+				if is_networked_game and multiplayer.is_server():
+					network_switch_turn.rpc(current_turn, game_direction)
+				else:
+					switch_turn()
 			
 		elif card.value == "5" and card.suit == "Hearts" and cards_to_draw == 5:
 			# Cancel King of Hearts effect
@@ -1316,6 +1326,7 @@ func defend_against_attack(card = null):
 			
 			# Place card in slot
 			card_slot.place_card(card)
+			card_slot.place_card(card)
 			
 			# Player who defended still must draw cards
 			waiting_for_defense = false
@@ -1332,19 +1343,72 @@ func defend_against_attack(card = null):
 	else:
 		# Player is not defending (skipped)
 		show_play_notification("Player " + str(current_turn + 1) + " draws " + str(cards_to_draw) + " cards")
-	
-		# Apply the card drawing
-		for i in range(cards_to_draw):
-			var drawn_card = deck.draw_card(current_turn)
-			if drawn_card:
-				print("Player " + str(current_turn + 1) + " drew a card")
+
+		# ONLY the server should draw cards
+		if not is_networked_game or multiplayer.is_server():
+			# Apply the card drawing
+			for i in range(cards_to_draw):
+				var drawn_card = deck.draw_card(current_turn)
+				if drawn_card:
+					print("Player " + str(current_turn + 1) + " drew a card")
 		
 		# Reset state
 		cards_to_draw = 0
 		waiting_for_defense = false
 		
-		# Skip directly to the next player
-		switch_turn()
+		# Synchronize turn change in networked games
+		if is_networked_game and multiplayer.is_server():
+			network_switch_turn.rpc((current_turn + game_direction) % num_players, game_direction)
+		else:
+			# Skip directly to the next player
+			switch_turn()
+		
+@rpc("any_peer", "call_local", "reliable")
+func network_defend_with_card(peer_id, card_value, card_suit):
+	# Find which player position this peer is using
+	if not player_positions.has(peer_id):
+		print("Error: Unknown peer tried to defend: ", peer_id)
+		return
+	
+	var player_position = player_positions[peer_id]
+	
+	# Verify it's their turn
+	if player_position != current_turn:
+		print("Error: Player tried to defend out of turn")
+		return
+	
+	# Find the card in the player's hand by value and suit
+	var defense_card = null
+	for card in hands[player_position].hand:
+		if card.value == card_value and card.suit == card_suit:
+			defense_card = card
+			break
+	
+	if defense_card:
+		# Call internal defend logic
+		defend_against_attack(defense_card)
+	else:
+		print("Error: Defense card not found in player's hand:", card_value, "of", card_suit)
+
+@rpc("any_peer", "call_local", "reliable")
+func network_skip_defense(peer_id):
+	# Find which player position this peer is using
+	if not player_positions.has(peer_id):
+		print("Error: Unknown peer tried to skip defense: ", peer_id)
+		return
+	
+	var player_position = player_positions[peer_id]
+	
+	# Verify it's their turn
+	if player_position != current_turn:
+		print("Error: Player tried to skip defense out of turn")
+		return
+		
+	# Call internal skip defense logic
+	defend_against_attack(null)
+	
+
+		
 # Networked version of suit selection
 @rpc("any_peer", "call_local")
 func network_select_suit(peer_id, suit):
@@ -1582,11 +1646,13 @@ func switch_turn():
 		var next_player = (current_turn + game_direction) % num_players
 		if next_player < 0:
 			next_player = num_players - 1
-			
-		for i in range(cards_to_draw):
-			var drawn_card = deck.draw_card(next_player)
-			if drawn_card:
-				print("Player " + str(next_player + 1) + " drew a card")
+		
+		# ONLY the server should draw cards
+		if not is_networked_game or multiplayer.is_server():    
+			for i in range(cards_to_draw):
+				var drawn_card = deck.draw_card(next_player)
+				if drawn_card:
+					print("Player " + str(next_player + 1) + " drew a card")
 		
 		show_play_notification("Player " + str(next_player + 1) + " drew " + str(cards_to_draw) + " cards!")
 		
