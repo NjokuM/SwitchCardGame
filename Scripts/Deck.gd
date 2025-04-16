@@ -55,6 +55,7 @@ func sync_deck(shuffled_deck):
 	print("✅ Received shuffled deck from server")
 
 func deal_initial_cards() -> void:
+	
 	var network = get_node_or_null("/root/NetworkManager")
 	var is_networked = network and network.multiplayer and network.player_info.size() > 0
 	
@@ -62,6 +63,7 @@ func deal_initial_cards() -> void:
 		# Server controls initial dealing
 		for i in range(CARDS_PER_PLAYER):
 			for j in range(game_manager.num_players):
+				SoundManager.play_card_draw_sound()
 				await get_tree().create_timer(CARD_DRAW_SPEED).timeout
 				var card = deal_card_to_player(j)
 				
@@ -143,6 +145,7 @@ func sync_draw_card(player_index, card_value, card_suit):
 	game_manager.hands[player_index].add_card(new_card, CARD_DRAW_SPEED)
 
 func draw_card(player_index: int):
+	SoundManager.play_card_draw_sound()
 	print("DEBUG: Draw request for Player " + str(player_index + 1))
 	
 	var network = get_node_or_null("/root/NetworkManager")

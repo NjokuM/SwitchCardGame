@@ -31,6 +31,7 @@ var my_peer_id = 0
 
 func _ready() -> void:
 	await get_tree().process_frame  
+	MusicManager.stop_for_game()
 	
 	# Check if we're coming from the network setup
 	var network = get_node_or_null("/root/NetworkManager")
@@ -1766,8 +1767,8 @@ func _on_card_clicked(card):
 		select_card(card)
 		
 func handle_game_over(player_index):
-	# Show victory notification
-	show_play_notification("Player " + str(player_index + 1) + " wins!")
+	
+	SoundManager.play_win_sound()
 	
 	# Wait a moment before showing winner popup
 	await get_tree().create_timer(.5).timeout

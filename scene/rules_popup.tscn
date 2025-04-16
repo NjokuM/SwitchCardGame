@@ -125,6 +125,8 @@ text = "• The goal of Switch is to be the first player to discard all your car
 
 • If you can't play any card, you must draw a card from the deck and skip your turn.
 
+• When playing mulitple cards at once, the last card you select will be the card on top in the card slot
+
 • The player who gets rid of all their cards first wins the game."
 fit_content = true
 autowrap_mode = 2

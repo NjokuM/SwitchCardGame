@@ -62,12 +62,14 @@ func create_server(player_name=""):
 func get_local_ip() -> String:
 	var ip = ""
 	for address in IP.get_local_addresses():
+		print(address)
 		# Filter out loopback, IPv6, and other non-standard IPs
 		if address.begins_with("192.168.") or address.begins_with("10.") or address.begins_with("172."):
 			ip = address
 			break
 	return ip
 	
+
 # Connect to a server
 func join_server(ip, player_name=""):
 	if ip == "127.0.0.1" and not is_local_server_running():

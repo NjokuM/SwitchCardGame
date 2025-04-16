@@ -3,9 +3,6 @@ extends Node2D
 signal slot_clicked
 var last_played_card: Node2D  # Store the actual card node
 
-# Sound effect
-var card_place_sound: AudioStreamOggVorbis
-
 # Animation parameters
 const CARD_PLAY_DURATION = 0.3
 const CARD_PLAY_SCALE_INITIAL = Vector2(0.5, 0.5)
@@ -31,8 +28,6 @@ func _ready():
 	# Connect to window resize signals
 	get_tree().root.size_changed.connect(center_position)
 	
-	# Load the card place sound
-	card_place_sound = load("res://assets/sounds/soundEffects/cardPlace3.ogg")
 
 # Function to center the card slot on screen
 func center_position():
@@ -91,7 +86,7 @@ func place_card(card: Node2D):
 		return
 		
 	# Play card place sound
-	play_card_sound()
+	SoundManager.play_card_place_sound()
 		
 	# Add the previous card to the discard pile before replacing it
 	if last_played_card and last_played_card != card:
@@ -168,16 +163,3 @@ func add_to_discard_pile(card: Node2D):
 			"suit": card.suit
 		}
 		$"../Deck".add_to_discard_pile(card_data)
-
-func play_card_sound():
-	# Only play if sound is loaded
-	if card_place_sound:
-		var audio_player = AudioStreamPlayer.new()
-		audio_player.stream = card_place_sound
-		audio_player.volume_db = -10  # Slightly reduce volume to prevent it being too loud
-		add_child(audio_player)
-		audio_player.play()
-		
-		# Automatically remove the audio player after it finishes
-		await audio_player.finished
-		audio_player.queue_free()

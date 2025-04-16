@@ -13,12 +13,16 @@ config_version=5
 config/name="Switch"
 run/main_scene="res://scene/main_menu.tscn"
 config/features=PackedStringArray("4.3", "Mobile")
-config/icon="res://icon.svg"
+config/icon="res://assets/Icons/switch-logo.png"
+config/macos_native_icon="res://assets/Icons/switch-logo.png"
+config/windows_native_icon="res://assets/Icons/switch-logo.png"
 
 [autoload]
 
 GameSettings="*res://Scripts/game_settings.gd"
 NetworkManager="*res://Scripts/NetworkManager.gd"
+SoundManager="*res://Scripts/SoundManager.gd"
+MusicManager="*res://Scripts/MusicManager.gd"
 
 [display]
 

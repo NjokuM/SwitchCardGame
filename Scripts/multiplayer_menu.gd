@@ -53,6 +53,7 @@ func _ready():
 	refresh_timer.start()
 
 func _on_host_button_pressed():
+	SoundManager.play_card_select_sound()
 	if player_name_input.text == "":
 		_on_game_error("Please enter a player name")
 		return
@@ -73,6 +74,7 @@ func _on_host_button_pressed():
 		status_label.text = "Server created! Waiting for players..."
 
 func _on_join_button_pressed():
+	SoundManager.play_card_select_sound()
 	if player_name_input.text == "":
 		_on_game_error("Please enter a player name")
 		return
@@ -89,6 +91,8 @@ func _on_join_button_pressed():
 	network.join_server(ip_input.text, local_player_name)
 
 func _on_back_button_pressed():
+	SoundManager.play_card_select_sound()
+	
 	if refresh_timer:
 		refresh_timer.stop()
 	
@@ -97,6 +101,7 @@ func _on_back_button_pressed():
 	get_tree().change_scene_to_file("res://scene/play_menu.tscn")
 
 func _on_ready_button_pressed():
+	SoundManager.play_card_select_sound()
 	# Tell everybody we're ready to start
 	var network = get_node("/root/NetworkManager")
 	network.set_player_ready(true)
@@ -116,6 +121,7 @@ func _on_ready_button_pressed():
 	update_start_button_visibility()
 
 func _on_start_game_button_pressed():
+	SoundManager.play_card_select_sound()
 	# Start the game
 	var network = get_node("/root/NetworkManager")
 	start_game_button.disabled = true
