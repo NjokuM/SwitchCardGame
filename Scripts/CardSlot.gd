@@ -3,6 +3,16 @@ extends Node2D
 signal slot_clicked
 var last_played_card: Node2D  # Store the actual card node
 
+# Sound effect
+var card_place_sound: AudioStreamOggVorbis
+
+# Animation parameters
+const CARD_PLAY_DURATION = 0.3
+const CARD_PLAY_SCALE_INITIAL = Vector2(0.5, 0.5)
+const CARD_PLAY_SCALE_FINAL = Vector2(0.8, 0.8)
+const CARD_PLAY_INITIAL_OFFSET = Vector2(0, 100)  # Card comes from below
+const CARD_PLAY_ROTATION_INITIAL = 0.5  # Slight rotation on entry
+
 func _ready():
 	# Add click detection for the slot
 	var area = Area2D.new()
@@ -20,6 +30,9 @@ func _ready():
 	
 	# Connect to window resize signals
 	get_tree().root.size_changed.connect(center_position)
+	
+	# Load the card place sound
+	card_place_sound = load("res://assets/sounds/soundEffects/cardPlace3.ogg")
 
 # Function to center the card slot on screen
 func center_position():
@@ -66,23 +79,19 @@ func can_place_card(card: Node2D) -> bool:
 	return suit_matches or value_matches
 
 func place_card(card: Node2D):
-	# First do a safety check without accessing potentially missing properties
-	if card == null:
-		print("DEBUG: Card is null in place_card")
+	# Safety checks
+	if not card or not ("value" in card) or not ("suit" in card):
+		print("DEBUG: Card missing required properties")
 		return
-	
-	# Try can_place_card in a safe way
-	var can_place = false
-	if card.get("value") != null and card.get("suit") != null:
-		can_place = can_place_card(card)
-	else:
-		print("DEBUG: Card missing properties in place_card")
-		# Still allow first card to be placed
-		can_place = last_played_card == null
-	
-	if not can_place:
+		
+	if last_played_card == null:
+		print("No card in slot yet, can place any card")
+	elif not can_place_card(card):
 		print("❌ Cannot place this card!")
 		return
+		
+	# Play card place sound
+	play_card_sound()
 		
 	# Add the previous card to the discard pile before replacing it
 	if last_played_card and last_played_card != card:
@@ -94,11 +103,29 @@ func place_card(card: Node2D):
 			card.get_parent().remove_child(card)
 		add_child(card)
 	
-	# Position the card at the center of the CardSlot (0,0 local position)
-	card.position = Vector2.ZERO
+	# Prepare initial state for animation
+	card.position = Vector2.ZERO + CARD_PLAY_INITIAL_OFFSET
+	card.scale = CARD_PLAY_SCALE_INITIAL * 0.7  # Start smaller
+	card.rotation = CARD_PLAY_ROTATION_INITIAL
 	card.z_index = 10
 	
-	# Important: Cards in the slot should always show their face
+	# Animate the card
+	var tween = create_tween()
+	tween.set_parallel(true)
+	
+	# Position animation
+	tween.tween_property(card, "position", Vector2.ZERO, CARD_PLAY_DURATION)\
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	
+	# Scale animation
+	tween.tween_property(card, "scale", CARD_PLAY_SCALE_FINAL, CARD_PLAY_DURATION)\
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	
+	# Rotation animation (back to 0)
+	tween.tween_property(card, "rotation", 0, CARD_PLAY_DURATION)\
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	
+	# Ensure card is fully visible
 	card.visible = true
 	if card.has_node("CardFaceImage"):
 		card.get_node("CardFaceImage").visible = true
@@ -141,3 +168,16 @@ func add_to_discard_pile(card: Node2D):
 			"suit": card.suit
 		}
 		$"../Deck".add_to_discard_pile(card_data)
+
+func play_card_sound():
+	# Only play if sound is loaded
+	if card_place_sound:
+		var audio_player = AudioStreamPlayer.new()
+		audio_player.stream = card_place_sound
+		audio_player.volume_db = -10  # Slightly reduce volume to prevent it being too loud
+		add_child(audio_player)
+		audio_player.play()
+		
+		# Automatically remove the audio player after it finishes
+		await audio_player.finished
+		audio_player.queue_free()

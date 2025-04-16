@@ -18,6 +18,10 @@ const HOVER_OFFSET = -50
 const SELECTION_OFFSET = -80
 const ANIMATION_DURATION = 0.2
 
+const FLYING_DURATION = 0.5  # Total duration of the flying animation
+const FLYING_HEIGHT = -200   # How high the card will rise before flying to the slot
+const SLOT_POSITION = Vector2.ZERO  # The target position (card slot center)
+
 func set_card_data(card_value: String, card_suit: String):
 	value = card_value
 	suit = card_suit
@@ -100,6 +104,47 @@ func play_to_slot():
 	is_selected = false
 	# Reset position if needed
 	position = Vector2.ZERO
+	
+
+# New method to animate card flying to the slot
+func fly_to_slot(slot_position: Vector2 = SLOT_POSITION):
+	# Stop any existing animations
+	if get_tree().get_tween_manager().is_object_animating(self):
+		get_tree().get_tween_manager().remove_object(self)
+	
+	# Create a new tween for the flying animation
+	var tween = create_tween()
+	tween.set_trans(Tween.TRANS_CUBIC)
+	tween.set_ease(Tween.EASE_IN_OUT)
+	
+	# Store original z-index and set to a high value during animation
+	var original_z_index = z_index
+	z_index = 100  # Ensure the card is above other elements during animation
+	
+	# First, rise up
+	tween.tween_property(self, "position:y", position.y + FLYING_HEIGHT, FLYING_DURATION / 2)
+	
+	# Then fly to the slot
+	tween.tween_property(self, "position", slot_position, FLYING_DURATION / 2)
+	
+	# After flying, set card state
+	tween.tween_callback(func():
+		is_card_in_card_slot = true
+		is_selected = false
+		z_index = original_z_index  # Restore original z-index
+		
+		# Ensure the card face is visible
+		if has_node("CardFaceImage"):
+			$CardFaceImage.visible = true
+			$CardFaceImage.texture = face_texture
+		
+		if has_node("CardBackImage"):
+			$CardBackImage.visible = false
+	)
+
+# Optional: Method to check if the card is currently being animated
+func is_animating() -> bool:
+	return get_tree().get_tween_manager().is_object_animating(self)
 	
 func set_chosen_suit(suit: String):
 	chosen_suit = suit
