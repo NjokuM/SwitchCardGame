@@ -92,20 +92,6 @@ theme_override_styles/pressed = SubResource("StyleBoxFlat_8gebh")
 theme_override_styles/normal = SubResource("StyleBoxFlat_nbefu")
 text = "Online Multiplayer"
 
-[node name="Button2" type="Button" parent="VBoxContainer"]
-layout_mode = 2
-size_flags_vertical = 3
-theme_override_colors/font_hover_color = Color(0, 0, 0, 1)
-theme_override_colors/font_pressed_color = Color(0, 0, 0, 1)
-theme_override_colors/font_focus_color = Color(0, 0, 0, 1)
-theme_override_colors/font_color = Color(0, 0, 0, 1)
-theme_override_font_sizes/font_size = 60
-theme_override_styles/focus = SubResource("StyleBoxEmpty_roel2")
-theme_override_styles/hover = SubResource("StyleBoxFlat_norys")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_8gebh")
-theme_override_styles/normal = SubResource("StyleBoxFlat_nbefu")
-text = "Local Multiplayer"
-
 [node name="Button3" type="Button" parent="VBoxContainer"]
 layout_mode = 2
 size_flags_vertical = 3
@@ -119,6 +105,23 @@ theme_override_styles/hover = SubResource("StyleBoxFlat_norys")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_8gebh")
 theme_override_styles/normal = SubResource("StyleBoxFlat_nbefu")
 text = "Play vs CPU"
+
+[node name="ComingSoonLabel" type="Label" parent="VBoxContainer/Button3"]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -368.0
+offset_top = -27.0
+offset_right = -208.0
+offset_bottom = 15.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.905882, 0.435294, 0.317647, 1)
+theme_override_font_sizes/font_size = 20
+text = "COMING SOON"
 
 [node name="Label" type="Label" parent="VBoxContainer/Button3"]
 layout_mode = 1
@@ -161,6 +164,5 @@ theme_override_styles/normal = SubResource("StyleBoxFlat_back_button")
 text = "BACK"
 
 [connection signal="pressed" from="VBoxContainer/Button" to="." method="_on_multiplayer_button_pressed"]
-[connection signal="pressed" from="VBoxContainer/Button2" to="." method="_on_local_button_pressed"]
 [connection signal="pressed" from="VBoxContainer/Button3" to="." method="_on_play_cpu_button_pressed"]
 [connection signal="pressed" from="BackButton" to="." method="_on_back_button_pressed"]

@@ -15,4 +15,4 @@ func test_deck_initialization():
 	assert_eq(deck.deck.size(), 52, "Shuffling should not change deck size")
 	assert_false(deck.deck == original_deck, "Deck should be randomized after shuffling")
 	
-	wait_seconds(5.0)  # Wait for 2 seconds before closing
+	wait_seconds(25.0)  # Wait for 2 seconds before closing

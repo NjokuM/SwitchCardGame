@@ -370,7 +370,7 @@ func start_game():
 	
 	print("Finished dealing cards. Starting turn for Player", current_turn + 1)
 	
-@rpc("authority", "call_remote", "reliable")  # Change to call_remote
+@rpc("authority", "call_local", "reliable")  # Change to call_remote
 func place_card_networked(value: String, suit: String):
 	var new_card = deck.create_card_from_data(value, suit)
 	card_slot.place_card(new_card)
@@ -1170,7 +1170,8 @@ func show_defense_ui(attack_type):
 	
 	add_child(defense_button_container)
 
-# Function to handle specific defense option for King of Hearts
+# Update these functions in your GameManager.gd
+
 func _on_specific_defend_pressed(defense_type):
 	# Clean up UI
 	if defense_button_container:
@@ -1193,18 +1194,23 @@ func _on_specific_defend_pressed(defense_type):
 				break
 	
 	if defense_card:
-		defend_against_attack(defense_card)
+		if is_networked_game:
+			network_defend_with_card.rpc(my_peer_id, defense_card.value, defense_card.suit)
+		else:
+			defend_against_attack(defense_card)
 	else:
-		_on_skip_defense_pressed()
+		if is_networked_game:
+			network_skip_defense.rpc(my_peer_id)
+		else:
+			_on_skip_defense_pressed()
 
-# Function to handle defend button press
 func _on_defend_pressed(attack_type):
 	# Clean up UI
 	if defense_button_container:
 		defense_button_container.queue_free()
 		defense_button_container = null
 	
-	# We need to find the appropriate defense card
+	# Find the appropriate defense card
 	var defense_card = null
 	
 	if attack_type == "2":
@@ -1214,61 +1220,66 @@ func _on_defend_pressed(attack_type):
 				defense_card = card
 				break
 	elif attack_type == "KingOfHearts":
-		# First check for 5 of Hearts
+		# Check for appropriate defense cards
 		for card in hands[current_turn].hand:
-			if card.value == "5" and card.suit == "Hearts":
+			if (card.value == "5" and card.suit == "Hearts") or (card.value == "2" and card.suit == "Hearts"):
 				defense_card = card
 				break
-		
-		# If no 5 of Hearts, check for 2 of Hearts
-		if not defense_card:
-			for card in hands[current_turn].hand:
-				if card.value == "2" and card.suit == "Hearts":
-					defense_card = card
-					break
 	
 	if defense_card:
-		# Play the defense card
-		defend_against_attack(defense_card)
+		if is_networked_game:
+			network_defend_with_card.rpc(my_peer_id, defense_card.value, defense_card.suit)
+		else:
+			defend_against_attack(defense_card)
 	else:
-		# No defense card found (shouldn't happen)
-		_on_skip_defense_pressed()
+		if is_networked_game:
+			network_skip_defense.rpc(my_peer_id)
+		else:
+			_on_skip_defense_pressed()
 
-# Function to handle skip defense button press
 func _on_skip_defense_pressed():
 	# Clean up UI
 	if defense_button_container:
 		defense_button_container.queue_free()
 		defense_button_container = null
 	
-	# Accept the attack
-	defend_against_attack(null)
+	if is_networked_game:
+		network_skip_defense.rpc(my_peer_id)
+	else:
+		defend_against_attack(null)
+# Add these new RPC functions in your GameManager.gd file
 
-# Function to handle defending against a 2 or King of Hearts
 func defend_against_attack(card = null):
 	if not waiting_for_defense:
 		return
-		
+ 
 	if card:
 		# Player is defending with a card
 		if card.value == "2":
 			# Add 2 more cards to draw
 			cards_to_draw += 2
-			
+ 
 			# Calculate next player to check if they can defend
 			next_player_to_draw = (current_turn + game_direction) % num_players
 			if next_player_to_draw < 0:
 				next_player_to_draw = num_players - 1
-				
+ 
 			# Remove the card from hand
 			hands[current_turn].remove_card(card)
-			
+ 
 			# Add a small delay to ensure hand repositioning completes
 			await get_tree().create_timer(0.5).timeout
-			
+ 
 			# Place card in slot
-			card_slot.place_card(card)
-			
+			if is_networked_game and multiplayer.is_server():
+				# First place the card locally on the server
+				card_slot.place_card(card)
+				# Then sync to all clients
+				place_card_networked.rpc(card.value, card.suit)
+			else:
+				# Only for local games
+				card_slot.place_card(card)
+ 
 			# Check if next player has a 2 to defend
 			if has_card_in_hand(next_player_to_draw, "2"):
 				show_play_notification("Player " + str(next_player_to_draw + 1) + " can defend! Total cards: " + str(cards_to_draw))
@@ -1280,89 +1291,94 @@ func defend_against_attack(card = null):
 				show_play_notification("Player " + str(next_player_to_draw + 1) + " must draw " + str(cards_to_draw) + " cards!")
 				waiting_for_defense = false
 				current_turn = next_player_to_draw
-				
-				# ONLY the server should draw cards
+ 
+				# Apply card drawing - ONLY on server for networked games
 				if not is_networked_game or multiplayer.is_server():
-					# Apply card drawing
 					for i in range(cards_to_draw):
 						var drawn_card = deck.draw_card(current_turn)
 				
 				cards_to_draw = 0
-				
-				# Synchronize turn change in networked games
-				if is_networked_game and multiplayer.is_server():
-					network_switch_turn.rpc(current_turn, game_direction)
-				else:
-					switch_turn()
-			
+				switch_turn()
+ 
 		elif card.value == "5" and card.suit == "Hearts" and cards_to_draw == 5:
 			# Cancel King of Hearts effect
 			cards_to_draw = 0
 			show_play_notification("King of Hearts effect cancelled!")
-			
+ 
 			# Remove the card from hand
 			hands[current_turn].remove_card(card)
-			
+ 
 			# Add a small delay to ensure hand repositioning completes
 			await get_tree().create_timer(0.5).timeout
-			
+ 
 			# Place card in slot
-			card_slot.place_card(card)
-			
+			if is_networked_game and multiplayer.is_server():
+				# First place the card locally on the server
+				card_slot.place_card(card)
+				# Then sync to all clients
+				place_card_networked.rpc(card.value, card.suit)
+			else:
+				# Only for local games
+				card_slot.place_card(card)
+ 
 			# Move to next player
 			waiting_for_defense = false
 			switch_turn()
-			
+ 
 		elif card.value == "2" and card.suit == "Hearts" and cards_to_draw == 5:
 			# Convert 5 to 7 cards
 			cards_to_draw = 7
 			show_play_notification("Pick up increased to 7 cards!")
-			
+ 
 			# Remove the card from hand
 			hands[current_turn].remove_card(card)
-			
+ 
 			# Add a small delay to ensure hand repositioning completes
 			await get_tree().create_timer(0.5).timeout
-			
+ 
 			# Place card in slot
-			card_slot.place_card(card)
-			card_slot.place_card(card)
-			
+			if is_networked_game and multiplayer.is_server():
+				# First place the card locally on the server
+				card_slot.place_card(card)
+				# Then sync to all clients
+				place_card_networked.rpc(card.value, card.suit)
+			else:
+				# Only for local games
+				card_slot.place_card(card)
+ 
 			# Player who defended still must draw cards
 			waiting_for_defense = false
-			
-			# Apply card drawing to current player
-			for i in range(cards_to_draw):
-				var drawn_card = deck.draw_card(current_turn)
-				if drawn_card:
-					print("Player " + str(current_turn + 1) + " drew a card")
-			
+ 
+			# Apply card drawing to current player - ONLY on server for networked games
+			if not is_networked_game or multiplayer.is_server():
+				for i in range(cards_to_draw):
+					var drawn_card = deck.draw_card(current_turn)
+					if drawn_card:
+						print("Player " + str(current_turn + 1) + " drew a card")
+ 
 			# Reset state and move to next player
 			cards_to_draw = 0
 			switch_turn()
 	else:
 		# Player is not defending (skipped)
 		show_play_notification("Player " + str(current_turn + 1) + " draws " + str(cards_to_draw) + " cards")
-
-		# ONLY the server should draw cards
+ 
+		# Apply the card drawing - ONLY on server for networked games
 		if not is_networked_game or multiplayer.is_server():
-			# Apply the card drawing
 			for i in range(cards_to_draw):
 				var drawn_card = deck.draw_card(current_turn)
 				if drawn_card:
 					print("Player " + str(current_turn + 1) + " drew a card")
-		
+ 
 		# Reset state
 		cards_to_draw = 0
 		waiting_for_defense = false
-		
-		# Synchronize turn change in networked games
-		if is_networked_game and multiplayer.is_server():
-			network_switch_turn.rpc((current_turn + game_direction) % num_players, game_direction)
-		else:
-			# Skip directly to the next player
-			switch_turn()
-		
+ 
+		# Skip directly to the next player
+		switch_turn()
+	if not waiting_for_defense:
+		return
+
 @rpc("any_peer", "call_local", "reliable")
 func network_defend_with_card(peer_id, card_value, card_suit):
 	# Find which player position this peer is using
@@ -1406,8 +1422,6 @@ func network_skip_defense(peer_id):
 		
 	# Call internal skip defense logic
 	defend_against_attack(null)
-	
-
 		
 # Networked version of suit selection
 @rpc("any_peer", "call_local")
