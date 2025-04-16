@@ -370,10 +370,14 @@ func start_game():
 	
 	print("Finished dealing cards. Starting turn for Player", current_turn + 1)
 	
-@rpc("authority", "call_local", "reliable")  # Change to call_remote
+@rpc("authority", "call_local", "reliable")
 func place_card_networked(value: String, suit: String):
+	print("DEBUG: Received card sync: " + value + " of " + suit)
 	var new_card = deck.create_card_from_data(value, suit)
-	card_slot.place_card(new_card)
+	if new_card:
+		card_slot.place_card(new_card)
+	else:
+		print("ERROR: Failed to create card from data: " + value + " of " + suit)
 	
 func draw_valid_starting_card():
 	var card = deck.draw_card_for_slot()
@@ -799,7 +803,6 @@ func play_selected_cards():
 		play_selected_cards_internal()
 
 # Internal play_selected_cards implementation used by both local and network versions
-# Internal play_selected_cards implementation used by both local and network versions
 func play_selected_cards_internal():
 	if selected_cards.is_empty():
 		return
@@ -807,16 +810,12 @@ func play_selected_cards_internal():
 	if not card_slot.can_place_card(selected_cards[0]):
 		print("Cannot play these cards!")
 		return
-		
+	
 	# Check if this is their second-last card and show Last Card button
 	if hands[current_turn].hand.size() == selected_cards.size() + 1:
 		show_last_card_button()
 	# New code: Also check if player could win on next turn with multiple same cards
 	elif can_win_next_turn():
-		show_last_card_button()
-	
-	# Check if this is their second-last card and show Last Card button
-	if hands[current_turn].hand.size() == selected_cards.size() + 1:
 		show_last_card_button()
 	
 	# Play all selected cards in order
@@ -847,15 +846,36 @@ func play_selected_cards_internal():
 	# Track card effects for the UI label
 	var effect_description = ""
 	
-	# Handle non-Ace cards and Aces before the last one
+	# Handle cards in a networked-aware way
 	for i in range(selected_cards.size()):
 		var card = selected_cards[i]
+		var card_value = card.value
+		var card_suit = card.suit
+		
+		# Remove from hand
 		hands[current_turn].remove_card(card)
-		card_slot.place_card(card)
-		played_cards_descriptions.append(str(card.value) + " of " + str(card.suit))
+		
+		# In networked mode, only the server actually updates the card slot
+		# and broadcasts the update to all clients
+		if is_networked_game:
+			if multiplayer.is_server():
+				# Server places card and broadcasts to clients
+				card_slot.place_card(card)
+				place_card_networked.rpc(card_value, card_suit)
+				print("DEBUG: Server placed and broadcast: " + card_value + " of " + card_suit)
+			# Clients don't update their card slots directly - they wait for the server's RPC
+			else:
+				# We need to free the card since it will be recreated by the RPC
+				card.queue_free()
+				print("DEBUG: Client sent card to server: " + card_value + " of " + card_suit)
+		else:
+			# Local game - just place the card directly
+			card_slot.place_card(card)
+		
+		played_cards_descriptions.append(str(card_value) + " of " + str(card_suit))
 		
 		# Only trigger special effects for the last card or non-Aces
-		if (card.value != "Ace") or (i == last_ace_index):
+		if (card_value != "Ace") or (i == last_ace_index):
 			# Determine the card effect before handling it
 			var effect = get_card_effect_description(card, sevens_count)
 			if effect != "":
@@ -909,9 +929,8 @@ func play_selected_cards_internal():
 			extra_message = "Player " + str(current_turn + 1) + " plays again!"
 			
 		show_play_notification(extra_message)
-		
 	
-# Check for win condition
+	# Check for win condition
 	if hands[current_turn].hand.is_empty():
 		# Check if the last card played was a power card
 		var last_card = selected_cards[selected_cards.size() - 1]
@@ -1424,7 +1443,7 @@ func network_skip_defense(peer_id):
 	defend_against_attack(null)
 		
 # Networked version of suit selection
-@rpc("any_peer", "call_local")
+@rpc("any_peer", "call_local", "reliable")
 func network_select_suit(peer_id, suit):
 	# Find which player position this peer is using
 	if not player_positions.has(peer_id):
@@ -1438,8 +1457,8 @@ func network_select_suit(peer_id, suit):
 		print("Error: Player tried to select suit out of turn")
 		return
 	
-	# Call internal suit selection logic
-	select_suit_internal(suit)
+	# Call internal suit selection logic with authority flag
+	select_suit_internal(suit, true)
 
 # Function to show suit selection UI for Ace
 func show_suit_selection_ui():
@@ -1483,8 +1502,7 @@ func select_suit(suit):
 		# Local gameplay, use internal function directly
 		select_suit_internal(suit)
 
-# Internal suit selection implementation used by both local and network versions
-func select_suit_internal(suit):
+func select_suit_internal(suit, is_authority = false):
 	chosen_suit = suit
 	show_play_notification("Suit changed to " + suit)
 	
@@ -1497,6 +1515,11 @@ func select_suit_internal(suit):
 			# Fallback if method doesn't exist - set property directly
 			ace_card.chosen_suit = suit
 			print("Card suit changed to:", suit)
+	
+	# If this is the server or we're explicitly told this is authoritative
+	if (is_networked_game && multiplayer.is_server()) || is_authority:
+		# Sync suit change to all clients
+		sync_chosen_suit.rpc(suit)
 	
 	# Remove the suit selection UI
 	if has_node("SuitButtons"):
@@ -1512,7 +1535,7 @@ func select_suit_internal(suit):
 		# If we're in a networked game, try to get the actual player name
 		if is_networked_game:
 			var network = get_node_or_null("/root/NetworkManager")
-			if network and network.player_info.size() > 0:
+			if network && network.player_info.size() > 0:
 				# Find the player ID for this position
 				var player_id = -1
 				for id in player_positions:
@@ -1520,7 +1543,7 @@ func select_suit_internal(suit):
 						player_id = id
 						break
 				
-				if player_id > 0 and network.player_info.has(player_id) and network.player_info[player_id].has("name"):
+				if player_id > 0 && network.player_info.has(player_id) && network.player_info[player_id].has("name"):
 					player_name = network.player_info[player_id].name
 		
 		game_ui_labels.show_effect_message(player_name + " changed suit to " + suit)
@@ -1529,6 +1552,24 @@ func select_suit_internal(suit):
 	waiting_for_suit_selection = false
 	skip_turn_switch = false
 	switch_turn()
+	
+@rpc("authority", "call_local", "reliable")
+func sync_chosen_suit(suit):
+	# Directly update the chosen suit without recalculating anything
+	chosen_suit = suit
+	
+	# Also update the Ace card property
+	var ace_card = card_slot.get_last_played_card()
+	if ace_card && ace_card.value == "Ace":
+		if ace_card.has_method("set_chosen_suit"):
+			ace_card.set_chosen_suit(suit)
+		else:
+			ace_card.chosen_suit = suit
+	
+	# Update game status panel
+	update_game_status()
+	
+	print("Suit synchronized to:", suit)
 
 func update_game_status():
 	if game_status_panel:
