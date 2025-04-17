@@ -25,7 +25,10 @@ func _ready() -> void:
 func position_deck():
 	var screen_size = get_viewport_rect().size
 	# Position the deck at the left side of the center
-	position = Vector2(screen_size.x / 2 - 400, screen_size.y / 2)
+	position = Vector2(screen_size.x / 2 - 250, screen_size.y / 2)
+	
+	if has_node("Sprite2D"):
+		$Sprite2D.scale = Vector2(0.4, 0.4)
 	
 func initialize_deck():
 	deck.clear()

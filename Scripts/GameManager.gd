@@ -438,6 +438,9 @@ func create_player_hands():
 			
 		var hand = hand_scene.instantiate()
 		
+		# Get the player name using the helper function
+		var player_name = get_player_name(i)
+		
 		# In networked mode, only the local player's hand should be fully visible
 		if is_networked_game:
 			var local_position = -1
@@ -453,6 +456,9 @@ func create_player_hands():
 			
 		hand.position = positions[i]
 		hand.player_position = i
+		
+		# Set the player name
+		hand.call_deferred("set_player_name", player_name)
 		
 		# Handle rotation based on player positions
 		if is_networked_game:
@@ -510,11 +516,35 @@ func create_player_hands():
 		add_child(hand)
 		hands.append(hand)
 		
+		# Update name label positions after rotation is set
+		if hand.has_method("update_name_label_position"):
+			hand.call_deferred("update_name_label_position")
+		
 		# Set hand visibility based on whether this is local player or not
 		update_hand_visibility()
 		
 		print("✅ Hand added for Player", i + 1, "at", positions[i])
-
+func get_player_name(player_position: int) -> String:
+	# Default name as fallback
+	var player_name = "Player " + str(player_position + 1)
+	
+	# If this is a networked game, try to get the actual player name
+	if is_networked_game:
+		var network = get_node_or_null("/root/NetworkManager")
+		if network and network.player_info.size() > 0:
+			# Find the player ID for this position
+			var player_id = -1
+			for id in player_positions:
+				if player_positions[id] == player_position:
+					player_id = id
+					break
+			
+			# If we found the player ID, get their name
+			if player_id > 0 and network.player_info.has(player_id) and network.player_info[player_id].has("name"):
+				player_name = network.player_info[player_id].name
+	
+	return player_name
+	
 # Improved hand visibility function
 func update_hand_visibility():
 	if is_networked_game:
@@ -1844,4 +1874,4 @@ func handle_game_over(player_index):
 			winner_popup.call("_center_popup")
 		
 		# Show the winner popup
-		winner_popup.show_winner(player_index + 1)
+		winner_popup.show_winner(get_player_name(player_index))

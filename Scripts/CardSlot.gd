@@ -130,7 +130,7 @@ func place_card(card: Node2D):
 	
 	# Hide previous card if it exists
 	if last_played_card and last_played_card != card:
-		last_played_card.visible = false 
+		last_played_card.visible = false
 	
 	# Update the last played card
 	last_played_card = card
