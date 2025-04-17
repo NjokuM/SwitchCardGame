@@ -11,6 +11,8 @@ var is_card_in_card_slot: bool = false
 var is_selected: bool = false
 var face_texture: Texture2D  # Store the face texture for reference
 var chosen_suit: String = ""  # For Aces
+var glow_effect = null
+var glow_tween = null  # Store the glow animation tween
 
 
 # Constants for visual feedback
@@ -21,6 +23,9 @@ const ANIMATION_DURATION = 0.2
 const FLYING_DURATION = 0.5  # Total duration of the flying animation
 const FLYING_HEIGHT = -200   # How high the card will rise before flying to the slot
 const SLOT_POSITION = Vector2.ZERO  # The target position (card slot center)
+
+const GLOW_COLOR = Color(0.0, 0.7, 1.0, 0.7)  # Bright blue glow
+const GLOW_RADIUS = 5.0
 
 func set_card_data(card_value: String, card_suit: String):
 	value = card_value
@@ -36,6 +41,9 @@ func set_card_data(card_value: String, card_suit: String):
 	# Assign the texture to Sprite2D
 	if face_texture:
 		$CardFaceImage.texture = face_texture
+		# Also update the glow effect texture if it exists
+		if glow_effect:
+			glow_effect.texture = face_texture
 	else:
 		print("Error: Missing texture for %s of %s" % [value, suit])
 
@@ -46,7 +54,30 @@ func _input_event(viewport, event, shape_idx):
 func _ready():
 	starting_position = position
 	setup_collision()
+	setup_glow_effect()
 
+# Function to set up the glow effect
+func setup_glow_effect():
+	# Create a new node for the glow
+	glow_effect = Sprite2D.new()
+	glow_effect.name = "GlowEffect"
+	
+	# Position it behind the card
+	glow_effect.z_index = -1
+	
+	# Use the same texture as the card but slightly larger
+	glow_effect.scale = Vector2(0.55, 0.55)  # Slightly larger than card's 0.5 scale
+	
+	# Initially hide the glow
+	glow_effect.visible = false
+	
+	# Add the glow node to the card
+	add_child(glow_effect)
+	
+	# Update the glow's texture whenever the card's texture changes
+	if $CardFaceImage.texture:
+		glow_effect.texture = $CardFaceImage.texture
+		
 func setup_collision():
 	# Make sure we have an Area2D for collision
 	var area = $Area2D if has_node("Area2D") else null
@@ -88,31 +119,73 @@ func select():
 	SoundManager.play_card_select_sound()
 	if not is_selected and not is_card_in_card_slot:
 		is_selected = true
+		
+		# Move the card up
 		var tween = create_tween()
 		tween.tween_property(self, "position:y", 
 			starting_position.y + SELECTION_OFFSET, ANIMATION_DURATION)
+		
+		# Show the glow effect
+		if glow_effect:
+			glow_effect.visible = true
+			glow_effect.modulate = GLOW_COLOR
+			
+			# Add a pulsing effect to the glow
+			# Stop any existing tween first
+			if glow_tween:
+				glow_tween.kill()
+				
+			glow_tween = create_tween()
+			glow_tween.set_loops()  # Loop the tween
+			glow_tween.tween_property(glow_effect, "modulate:a", 0.3, 0.7)
+			glow_tween.tween_property(glow_effect, "modulate:a", 0.7, 0.7)
 
 func deselect():
 	if is_selected and not is_card_in_card_slot:
 		is_selected = false
+		
+		# Move the card back down
 		var tween = create_tween()
 		tween.tween_property(self, "position:y", 
 			starting_position.y, ANIMATION_DURATION)
+		
+		# Hide the glow effect
+		if glow_effect:
+			glow_effect.visible = false
+			
+			# Stop the glow animation
+			if glow_tween:
+				glow_tween.kill()
+				glow_tween = null
 
-# Call this when the card is played to the slot
+
 func play_to_slot():
 	is_card_in_card_slot = true
 	is_selected = false
+	
+	# Hide the glow effect when the card is played
+	if glow_effect:
+		glow_effect.visible = false
+		
+	# Stop any animations
+	if glow_tween:
+		glow_tween.kill()
+		glow_tween = null
+	
 	# Reset position if needed
 	position = Vector2.ZERO
-	
-func set_chosen_suit(suit: String):
-	chosen_suit = suit
 
-	print("Card suit changed to:", suit)
-
-# Call this when removing card from play
+# Update the reset_state function to also reset glow
 func reset_state():
 	is_card_in_card_slot = false
 	is_selected = false
 	position = starting_position
+	
+	# Hide glow effect
+	if glow_effect:
+		glow_effect.visible = false
+		
+	# Stop any animations
+	if glow_tween:
+		glow_tween.kill()
+		glow_tween = null

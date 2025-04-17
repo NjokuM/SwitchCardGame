@@ -66,11 +66,6 @@ func can_place_card(card: Node2D) -> bool:
 	var suit_matches = card.suit == last_played_card.suit
 	var value_matches = card.value == last_played_card.value
 	
-	print("Last played card: ", last_played_card.value, " of ", last_played_card.suit)
-	print("Attempting to play: ", card.value, " of ", card.suit)
-	print("Suit matches:", suit_matches)
-	print("Value matches:", value_matches)
-	
 	return suit_matches or value_matches
 
 func place_card(card: Node2D):
@@ -135,7 +130,7 @@ func place_card(card: Node2D):
 	
 	# Hide previous card if it exists
 	if last_played_card and last_played_card != card:
-		last_played_card.visible = false
+		last_played_card.visible = false 
 	
 	# Update the last played card
 	last_played_card = card

@@ -827,12 +827,13 @@ func play_selected_cards_internal():
 	var sevens_count = 0
 	var jack_count = 0
 	var eights_count = 0
+	var twos_count = 0  # Add counter for "2" cards
 	
 	# Check for Ace selection - only the LAST one matters
 	var has_ace = false
 	var last_ace_index = -1
 	
-	# Count Jacks and other special cards
+	# Count special cards first
 	for i in range(selected_cards.size()):
 		if selected_cards[i].value == "Ace":
 			has_ace = true
@@ -843,6 +844,8 @@ func play_selected_cards_internal():
 			sevens_count += 1
 		elif selected_cards[i].value == "8" and num_players == 2:
 			eights_count += 1
+		elif selected_cards[i].value == "2":
+			twos_count += 1  # Count how many "2" cards are played
 	
 	# Track card effects for the UI label
 	var effect_description = ""
@@ -875,14 +878,11 @@ func play_selected_cards_internal():
 		
 		played_cards_descriptions.append(str(card_value) + " of " + str(card_suit))
 		
-		# Only trigger special effects for the last card or non-Aces
-		if (card_value != "Ace") or (i == last_ace_index):
-			# Determine the card effect before handling it
-			var effect = get_card_effect_description(card, sevens_count)
-			if effect != "":
-				effect_description = effect
-				
-			handle_power_card_effects(card, sevens_count)
+		# Special handling - don't process effects for "2" cards until we've played all of them
+		if card_value == "2" and i < selected_cards.size() - 1 and selected_cards[i+1].value == "2":
+			continue  # Skip processing this "2" since there are more to come
+	
+	# Now process the combined effects of all cards played
 	
 	# Get player name
 	var player_name = "Player " + str(current_turn + 1)
@@ -902,12 +902,88 @@ func play_selected_cards_internal():
 			if current_player_id > 0 and network.player_info.has(current_player_id) and network.player_info[current_player_id].has("name"):
 				player_name = network.player_info[current_player_id].name
 	
+	# Handle the cumulative effect of multiple "2" cards
+	if twos_count > 0:
+		# Calculate next player considering game direction
+		next_player_to_draw = (current_turn + game_direction) % num_players
+		if next_player_to_draw < 0:
+			next_player_to_draw = num_players - 1
+			
+		# Calculate the total cards to draw - 2 per "2" card
+		cards_to_draw = twos_count * 2
+		
+		# Check if next player has a 2 to defend
+		if has_card_in_hand(next_player_to_draw, "2"):
+			waiting_for_defense = true
+			current_attacker = current_turn
+			show_play_notification("Player " + str(next_player_to_draw + 1) + " can play a 2 to defend against " + str(cards_to_draw) + " cards!")
+			show_defense_ui("2")
+			# Don't switch turns yet - wait for defense or skip
+		else:
+			print("Player ", next_player_to_draw + 1, " will draw ", cards_to_draw, " cards")
+			switch_turn()
+		
+		effect_description = "Next player draws " + str(cards_to_draw) + " cards"
+	# Only trigger special effects for other cards if no "2"s were played
+	elif twos_count == 0:
+		# Special handling for multiple Jacks or 8s
+		if jack_count > 0 or (eights_count > 0 and num_players == 2):
+			skip_turn_switch = true
+			
+			var extra_message = ""
+			if jack_count > 0 and eights_count > 0:
+				extra_message = "Player " + str(current_turn + 1) + " can play " + str(jack_count + eights_count) + " more card(s)!"
+			elif jack_count > 0:
+				extra_message = "Player " + str(current_turn + 1) + " can play " + str(jack_count) + " more card(s)!"
+			else:
+				extra_message = "Player " + str(current_turn + 1) + " plays again!"
+				
+			show_play_notification(extra_message)
+			
+		# Process other power card effects
+		if has_ace and last_ace_index >= 0:
+			# Handle Ace effect
+			waiting_for_suit_selection = true
+			skip_turn_switch = true
+			show_suit_selection_ui()
+			effect_description = "Changing suit"
+		elif sevens_count > 0:
+			# Handle accumulated 7s
+			if sevens_count > 0:
+				effect_description = "Skipping " + str(sevens_count) + " player(s)"
+				
+				# Store original turn before skipping
+				var original_turn = current_turn
+				
+				# Apply skips one by one to ensure proper wrapping
+				for i in range(sevens_count):
+					current_turn = (current_turn + game_direction) % num_players
+					if current_turn < 0:
+						current_turn = num_players - 1
+				
+				show_play_notification("Player " + str(original_turn + 1) + " played " + 
+									  str(sevens_count) + " 7s. Skipping " + str(sevens_count) + 
+									  " players to Player " + str(current_turn + 1) + "!")
+		elif eights_count > 0 and num_players > 2:
+			# In 3+ player mode, reverse direction for each 8 (odd number of 8s changes direction)
+			if eights_count % 2 == 1:
+				game_direction *= -1
+				show_play_notification("Game direction reversed!")
+				effect_description = "Game direction reversed"
+				
+				# Update game status panel to show new direction
+				update_game_status()
+	
 	# Update the play label with the card played information
 	if selected_cards.size() == 1:
 		game_ui_labels.update_play_label(player_name, selected_cards[0].value, selected_cards[0].suit, effect_description)
 	else:
 		# For multiple cards
-		game_ui_labels.show_effect_message(player_name + " played " + str(selected_cards.size()) + " cards: " + ", ".join(played_cards_descriptions))
+		var effect_text = ""
+		if effect_description != "":
+			effect_text = " - " + effect_description
+			
+		game_ui_labels.show_effect_message(player_name + " played " + str(selected_cards.size()) + " cards: " + ", ".join(played_cards_descriptions) + effect_text)
 	
 	# Join the card descriptions with commas
 	var played_cards_text = ", ".join(played_cards_descriptions)
@@ -916,20 +992,6 @@ func play_selected_cards_internal():
 	var player_number = current_turn + 1
 	var message = "Player " + str(player_number) + " played: " + played_cards_text
 	show_play_notification(message)
-	
-	# Special handling for multiple Jacks or 8s in 2-player mode
-	if jack_count > 0 or (eights_count > 0 and num_players == 2):
-		skip_turn_switch = true
-		
-		var extra_message = ""
-		if jack_count > 0 and eights_count > 0:
-			extra_message = "Player " + str(current_turn + 1) + " can play " + str(jack_count + eights_count) + " more card(s)!"
-		elif jack_count > 0:
-			extra_message = "Player " + str(current_turn + 1) + " can play " + str(jack_count) + " more card(s)!"
-		else:
-			extra_message = "Player " + str(current_turn + 1) + " plays again!"
-			
-		show_play_notification(extra_message)
 	
 	# Check for win condition
 	if hands[current_turn].hand.is_empty():
@@ -965,7 +1027,7 @@ func play_selected_cards_internal():
 	# Switch turns unless special condition
 	if not skip_turn_switch and not waiting_for_defense and not waiting_for_suit_selection:
 		switch_turn()
-		
+
 func update_turn_label():
 	if game_ui_labels:
 		var player_name = "Player " + str(current_turn + 1)
@@ -1025,24 +1087,28 @@ func get_card_effect_description(card, sevens_count = 0) -> String:
 func handle_power_card_effects(card, sevens_count = 0):
 	match card.value:
 		"2":
-			# Calculate next player considering game direction
-			next_player_to_draw = (current_turn + game_direction) % num_players
-			if next_player_to_draw < 0:
-				next_player_to_draw = num_players - 1
-				
-			# Check if next player has a 2 to defend
-			if has_card_in_hand(next_player_to_draw, "2"):
-				waiting_for_defense = true
-				current_attacker = current_turn
-				cards_to_draw = 2
-				show_play_notification("Player " + str(next_player_to_draw + 1) + " can play a 2 to defend!")
-				show_defense_ui("2")
-				# Don't switch turns yet - wait for defense or skip
-			else:
-				cards_to_draw = 2
-				print("Player ", next_player_to_draw + 1, " will draw ", cards_to_draw, " cards")
-				switch_turn()
+			# Skip individual processing if cards_to_draw is already set by multiple 2s
+			# Only process if this is a single "2" card play
+			if cards_to_draw == 0:
+				# Calculate next player considering game direction
+				next_player_to_draw = (current_turn + game_direction) % num_players
+				if next_player_to_draw < 0:
+					next_player_to_draw = num_players - 1
+					
+				# Check if next player has a 2 to defend
+				if has_card_in_hand(next_player_to_draw, "2"):
+					waiting_for_defense = true
+					current_attacker = current_turn
+					cards_to_draw = 2
+					show_play_notification("Player " + str(next_player_to_draw + 1) + " can play a 2 to defend!")
+					show_defense_ui("2")
+					# Don't switch turns yet - wait for defense or skip
+				else:
+					cards_to_draw = 2
+					print("Player ", next_player_to_draw + 1, " will draw ", cards_to_draw, " cards")
+					switch_turn()
 			
+		# Rest of function remains the same...
 		"7":
 			# Handle multiple 7s correctly across all player counts
 			if sevens_count > 0:
@@ -1116,7 +1182,7 @@ func handle_power_card_effects(card, sevens_count = 0):
 				cards_to_draw = 7  # Convert 5 to 7 cards
 				show_play_notification("Pick up increased to 7 cards!")
 				switch_turn()
-
+				
 # Add this function to check if a player has a specific card
 func has_card_in_hand(player_index, value, suit = null):
 	if player_index < 0 or player_index >= hands.size():
@@ -1396,8 +1462,6 @@ func defend_against_attack(card = null):
  
 		# Skip directly to the next player
 		switch_turn()
-	if not waiting_for_defense:
-		return
 
 @rpc("any_peer", "call_local", "reliable")
 func network_defend_with_card(peer_id, card_value, card_suit):
@@ -1647,7 +1711,7 @@ func show_last_card_button():
 		
 		# Position at the bottom center of the screen
 		var screen_size = get_viewport_rect().size
-		last_card_button.position = Vector2(screen_size.x / 2 - 100, screen_size.y - 100)
+		last_card_button.position = Vector2(screen_size.x / 2 - 300, screen_size.y - 300)
 		
 		# Connect the button to its handler
 		last_card_button.pressed.connect(_on_last_card_pressed)
