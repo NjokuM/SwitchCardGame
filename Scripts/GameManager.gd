@@ -33,6 +33,8 @@ func _ready() -> void:
 	await get_tree().process_frame  
 	MusicManager.stop_for_game()
 	
+	get_tree().root.size_changed.connect(func(): if last_card_button: position_last_card_button())
+	
 	# Check if we're coming from the network setup
 	var network = get_node_or_null("/root/NetworkManager")
 	if network and network.player_info.size() > 0:
@@ -175,7 +177,7 @@ func _on_player_disconnected(id):
 			# Handle player disconnection - can pause, end game, or replace with AI
 			show_play_notification("Player " + str(player_positions[id] + 1) + " disconnected!")
 			
-			# Example: If it's their turn, skip it
+			#  If it's their turn, skip it
 			if current_turn == player_positions[id]:
 				switch_turn()
 	
@@ -190,10 +192,9 @@ func reposition_all_game_elements():
 	# Update all hands positions
 	reposition_player_hands()
 	
-	# Update any UI elements
+	# Position the last card button if it exists
 	if last_card_button != null:
-		var screen_size = get_viewport_rect().size
-		last_card_button.position = Vector2(screen_size.x / 2 - 100, screen_size.y - 100)
+		position_last_card_button()
 
 func reposition_player_hands():
 	var screen_size = get_viewport_rect().size
@@ -590,7 +591,6 @@ func network_draw_card(peer_id):
 
 # Modified draw card function that supports both network and local play
 func draw_card_for_current_player():
-	print("DEBUG: Attempting to draw for Player " + str(current_turn + 1))
 	
 	if is_networked_game:
 		network_draw_card.rpc(my_peer_id)
@@ -782,7 +782,7 @@ func is_current_player_turn() -> bool:
 # Network version of playing cards
 @rpc("any_peer", "call_local")
 func network_play_cards(peer_id, card_data_array):
-	# This function is called on all clients when a player plays cards
+	"""This function is called on all clients when a player plays cards"""
 	
 	# Find which player position this peer is using
 	if not player_positions.has(peer_id):
@@ -858,6 +858,7 @@ func play_selected_cards_internal():
 	var jack_count = 0
 	var eights_count = 0
 	var twos_count = 0  # Add counter for "2" cards
+	var has_king_of_hearts = false  # Explicit flag for King of Hearts
 	
 	# Check for Ace selection - only the LAST one matters
 	var has_ace = false
@@ -876,6 +877,8 @@ func play_selected_cards_internal():
 			eights_count += 1
 		elif selected_cards[i].value == "2":
 			twos_count += 1  # Count how many "2" cards are played
+		elif selected_cards[i].value == "King" and selected_cards[i].suit == "Hearts":
+			has_king_of_hearts = true  # Mark when King of Hearts is played
 	
 	# Track card effects for the UI label
 	var effect_description = ""
@@ -932,8 +935,31 @@ func play_selected_cards_internal():
 			if current_player_id > 0 and network.player_info.has(current_player_id) and network.player_info[current_player_id].has("name"):
 				player_name = network.player_info[current_player_id].name
 	
-	# Handle the cumulative effect of multiple "2" cards
-	if twos_count > 0:
+	# Handle King of Hearts effect - make sure this runs before handling 2s
+	if has_king_of_hearts:
+		# Calculate next player considering game direction
+		next_player_to_draw = (current_turn + game_direction) % num_players
+		if next_player_to_draw < 0:
+			next_player_to_draw = num_players - 1
+			
+		# Check if next player has a 5 of Hearts or 2 of Hearts to defend
+		if has_card_in_hand(next_player_to_draw, "5", "Hearts") or has_card_in_hand(next_player_to_draw, "2", "Hearts"):
+			waiting_for_defense = true
+			current_attacker = current_turn
+			cards_to_draw = 5  # King of Hearts makes next player draw 5 cards
+			show_play_notification("Player " + str(next_player_to_draw + 1) + " can defend against King of Hearts!")
+			show_defense_ui("KingOfHearts")
+			
+			effect_description = "Next player draws 5 cards (unless defended)"
+			
+		else:
+			cards_to_draw = 5
+			print("Player ", next_player_to_draw + 1, " will draw ", cards_to_draw, " cards from King of Hearts")
+			effect_description = "Next player draws 5 cards"
+			switch_turn()
+	
+	# Handle the cumulative effect of multiple "2" cards if King of Hearts not played
+	elif twos_count > 0:
 		# Calculate next player considering game direction
 		next_player_to_draw = (current_turn + game_direction) % num_players
 		if next_player_to_draw < 0:
@@ -954,8 +980,8 @@ func play_selected_cards_internal():
 			switch_turn()
 		
 		effect_description = "Next player draws " + str(cards_to_draw) + " cards"
-	# Only trigger special effects for other cards if no "2"s were played
-	elif twos_count == 0:
+	# Only trigger special effects for other cards if no "2"s or King of Hearts were played
+	elif twos_count == 0 and not has_king_of_hearts:
 		# Special handling for multiple Jacks or 8s
 		if jack_count > 0 or (eights_count > 0 and num_players == 2):
 			skip_turn_switch = true
@@ -1057,7 +1083,7 @@ func play_selected_cards_internal():
 	# Switch turns unless special condition
 	if not skip_turn_switch and not waiting_for_defense and not waiting_for_suit_selection:
 		switch_turn()
-
+		
 func update_turn_label():
 	if game_ui_labels:
 		var player_name = "Player " + str(current_turn + 1)
@@ -1722,26 +1748,27 @@ func show_last_card_button():
 	# Create button if it doesn't exist
 	if last_card_button == null:
 		last_card_button = Button.new()
-		last_card_button.text = "Last Card!"
-		last_card_button.custom_minimum_size = Vector2(200, 50)
+		last_card_button.text = "LAST CARD!"
+		# Double the size of the button
+		last_card_button.custom_minimum_size = Vector2(300, 100)
 		
 		# Style the button to make it stand out
 		var style = StyleBoxFlat.new()
 		style.bg_color = Color(0.9, 0.1, 0.1, 0.8)  # Bright red
-		style.border_width_left = 2
-		style.border_width_right = 2
-		style.border_width_top = 2
-		style.border_width_bottom = 2
+		style.border_width_left = 4
+		style.border_width_right = 4
+		style.border_width_top = 4
+		style.border_width_bottom = 4
 		style.border_color = Color(1, 1, 1)
-		style.corner_radius_top_left = 10
-		style.corner_radius_top_right = 10
-		style.corner_radius_bottom_left = 10
-		style.corner_radius_bottom_right = 10
+		style.corner_radius_top_left = 15
+		style.corner_radius_top_right = 15
+		style.corner_radius_bottom_left = 15
+		style.corner_radius_bottom_right = 15
 		last_card_button.add_theme_stylebox_override("normal", style)
 		
-		# Position at the bottom center of the screen
-		var screen_size = get_viewport_rect().size
-		last_card_button.position = Vector2(screen_size.x / 2 - 300, screen_size.y - 300)
+		# Make the text bigger and bolder
+		last_card_button.add_theme_font_size_override("font_size", 32)
+		last_card_button.add_theme_constant_override("outline_size", 2)
 		
 		# Connect the button to its handler
 		last_card_button.pressed.connect(_on_last_card_pressed)
@@ -1750,13 +1777,39 @@ func show_last_card_button():
 	
 	# Show the button
 	last_card_button.visible = true
+	
+	# Position relative to turn label - making it appear below
+	position_last_card_button()
+
+func position_last_card_button():
+	if last_card_button and game_ui_labels:
+		# Get the position and size of the turn label panel
+		var turn_label_panel = game_ui_labels.get_node_or_null("TurnLabelPanel")
+		if turn_label_panel:
+			# Position the button directly below the turn label with a small gap
+			var screen_size = get_viewport_rect().size
+			var global_pos = turn_label_panel.global_position
+			var panel_size = turn_label_panel.size
+			
+			# Center horizontally relative to the turn label and position below it
+			last_card_button.position = Vector2(
+				global_pos.x + (panel_size.x - last_card_button.custom_minimum_size.x) / 2,
+				global_pos.y + panel_size.y + 20  # 20 pixels gap
+			)
+		else:
+			# Fallback positioning if turn label can't be found
+			var screen_size = get_viewport_rect().size
+			last_card_button.position = Vector2(
+				screen_size.x / 2 - last_card_button.custom_minimum_size.x / 2,
+				screen_size.y - 250
+			)
 
 # Add this function to hide the Last Card button
 func hide_last_card_button():
 	if last_card_button != null:
 		last_card_button.visible = false
 
-# Add this function to handle the Last Card button press
+# Handles the Last Card button press
 func _on_last_card_pressed():
 	if is_networked_game:
 		network_declare_last_card.rpc(my_peer_id)
